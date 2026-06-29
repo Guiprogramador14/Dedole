@@ -130,7 +130,7 @@ class _TelaConfigState extends State<TelaConfig> {
           ),
         ),
         child: const Text(
-          'Configuraaaarrrrr SCREEN',
+          'Configuraaaarrrrr',
           style: TextStyle(
             color: AppColors.navy,
             fontSize: 16,
