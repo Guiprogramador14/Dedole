@@ -10,6 +10,10 @@ class TelaBluetooth extends StatefulWidget {
 }
 
 class _TelaBluetoothState extends State<TelaBluetooth> {
+  //Variaveis
+  BluetoothDevice? dispositivoConectado;
+  bool conectando = false;
+
   Future<bool> pedirPermissoes() async {
     await Permission.bluetoothScan.request();
     await Permission.bluetoothConnect.request();
@@ -57,7 +61,9 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   }
 
   void procurarDispositivos() async {
-    dispositivos.clear();
+    setState(() {
+      dispositivos.clear();
+    });
 
     await FlutterBluePlus.stopScan();
 
@@ -75,15 +81,41 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Conectar ESP32"),
+
+        bottom: dispositivoConectado != null
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(25),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    "Conectado: ${dispositivoConectado!.platformName}",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              )
+            : null,
+
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: procurarDispositivos,
+            onPressed: () async {
+              if (dispositivoConectado != null) {
+                await dispositivoConectado!.disconnect();
+              }
+
+              setState(() {
+                dispositivoConectado = null;
+              });
+
+              procurarDispositivos();
+            },
           ),
         ],
       ),
 
-      body: dispositivos.isEmpty
+      body: conectando
+          ? const Center(child: CircularProgressIndicator())
+          : dispositivos.isEmpty
           ? const Center(child: Text("Nenhum dispositivo encontrado"))
           : ListView.builder(
               itemCount: dispositivos.length,
@@ -99,22 +131,46 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
                   ),
                   subtitle: Text(dispositivo.remoteId.toString()),
                   onTap: () async {
+                    setState(() {
+                      conectando = true;
+                    });
+
+                    print("Você clicou em ${dispositivo.platformName}");
+
                     try {
+                      print("Tentando conectar...");
+
                       await dispositivo.connect(
                         timeout: const Duration(seconds: 10),
                       );
 
+                      List<BluetoothService> services = await dispositivo
+                          .discoverServices();
+
+                      print("Serviços encontrados:");
+
+                      for (BluetoothService service in services) {
+                        print(service.uuid);
+                      }
+
+                      setState(() {
+                        dispositivoConectado = dispositivo;
+                        conectando = false;
+                      });
+
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            "Conectado ao ${dispositivo.platformName}",
-                          ),
-                        ),
+                        const SnackBar(content: Text("Conectado!")),
                       );
                     } catch (e) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text("Erro ao conectar\n$e")),
-                      );
+                      setState(() {
+                        conectando = false;
+                      });
+
+                      print(e);
+
+                      ScaffoldMessenger.of(
+                        context,
+                      ).showSnackBar(SnackBar(content: Text(e.toString())));
                     }
                   },
                 );
