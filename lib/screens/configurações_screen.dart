@@ -25,25 +25,6 @@ class _TelaConfigState extends State<TelaConfig> {
   final TextEditingController _controller = TextEditingController();
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _salvarPalavra() {
-    final texto = _controller.text.trim();
-    if (texto.isEmpty) return;
-
-    // TODO: aqui entra a conversão da palavra para padrões Braille
-    // e o envio via Bluetooth para o ESP32.
-    debugPrint('Palavra salva: $texto');
-  }
-
-  void _abrirBluetooth() {
-    // TODO: navegar para a tela de pareamento/conexão BLE
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
