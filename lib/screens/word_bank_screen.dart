@@ -1,21 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../widgets/SquareButton.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-// ---------------------------------------------------------------------
-// Cores reutilizadas em toda a tela (ajuste o tom se quiser bater 100%
-// com o protótipo)
-// ---------------------------------------------------------------------
-class AppColors {
-  static const navy = Color(0xFF1B2161);
-  static const background = Color(0xFFF6F7FF);
-  static const cardBackground = Color(0xFFFCFCFF);
-}
-
-// ---------------------------------------------------------------------
-// Tela principal: "Digite a sua palavra"
-// ---------------------------------------------------------------------
 class TelaBancoDePalavras extends StatefulWidget {
   const TelaBancoDePalavras({super.key});
 
@@ -34,21 +20,21 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
 
   void _salvarPalavra() {
     final texto = _controller.text.trim();
+
     if (texto.isEmpty) return;
 
-    // TODO: aqui entra a conversão da palavra para padrões Braille
-    // e o envio via Bluetooth para o ESP32.
+    // TODO: Converter para Braille e enviar ao ESP32
     debugPrint('Palavra salva: $texto');
   }
 
   void _abrirBluetooth() {
-    // TODO: navegar para a tela de pareamento/conexão BLE
+    // TODO: Tela de Bluetooth
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFF6F7FF),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -57,11 +43,16 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
             children: [
               _buildHeader(),
               const SizedBox(height: 28),
+
               _buildCampoTexto(),
               const SizedBox(height: 16),
+
               _buildBotaoSalvar(),
               const SizedBox(height: 28),
-              Expanded(child: _buildGridDeAtalhos()),
+
+              Expanded(
+                child: _buildGridDeAtalhos(),
+              ),
             ],
           ),
         ),
@@ -69,13 +60,15 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
     );
   }
 
-  // -- Cabeçalho: seta de voltar, título e ícone de bluetooth ----------
   Widget _buildHeader() {
     return Row(
       children: [
         IconButton(
           padding: EdgeInsets.zero,
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.navy),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Color(0xFF1B2161),
+          ),
           onPressed: () => Navigator.maybePop(context),
         ),
         const Expanded(
@@ -83,7 +76,7 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
             'Digite a sua palavra:',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.navy,
+              color: Color(0xFF1B2161),
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -91,25 +84,34 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
         ),
         IconButton(
           padding: EdgeInsets.zero,
-          icon: const Icon(Icons.bluetooth, color: AppColors.navy),
           onPressed: _abrirBluetooth,
+          icon: SvgPicture.asset(
+            'assets/vetores/imgBluetooth.svg',
+            width: 28,
+            height: 28,
+          ),
         ),
       ],
     );
   }
 
-  // -- Campo de texto -----------------------------------------------
   Widget _buildCampoTexto() {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.cardBackground,
+        color: const Color(0xFFFCFCFF),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.navy, width: 1.2),
+        border: Border.all(
+          color: const Color(0xFF1B2161),
+          width: 1.2,
+        ),
       ),
       child: TextField(
         controller: _controller,
         textAlign: TextAlign.center,
-        style: const TextStyle(color: AppColors.navy, fontSize: 16),
+        style: const TextStyle(
+          color: Color(0xFF1B2161),
+          fontSize: 16,
+        ),
         decoration: const InputDecoration(
           border: InputBorder.none,
           contentPadding: EdgeInsets.symmetric(vertical: 14),
@@ -118,15 +120,17 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
     );
   }
 
-  // -- Botão "Salvar" (pill outline) ---------------------------------
   Widget _buildBotaoSalvar() {
     return SizedBox(
       height: 48,
       child: OutlinedButton(
         onPressed: _salvarPalavra,
         style: OutlinedButton.styleFrom(
-          backgroundColor: AppColors.cardBackground,
-          side: const BorderSide(color: AppColors.navy, width: 1.5),
+          backgroundColor: const Color(0xFFFCFCFF),
+          side: const BorderSide(
+            color: Color(0xFF1B2161),
+            width: 1.5,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -134,7 +138,7 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
         child: const Text(
           'Salvar',
           style: TextStyle(
-            color: AppColors.navy,
+            color: Color(0xFF1B2161),
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
@@ -143,36 +147,29 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
     );
   }
 
-  // -- Grade 2x2 com os atalhos ---------------------------------------
   Widget _buildGridDeAtalhos() {
     return GridView.count(
       crossAxisCount: 2,
-      mainAxisSpacing: 16,
       crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
       childAspectRatio: 1.05,
       children: [
         _CardAtalho(
           label: 'Suas palavras',
           onTap: () {},
-          child: const Icon(Icons.edit_outlined, size: 44, color: AppColors.navy),
+          child: SvgPicture.asset(
+            'assets/vetores/imgSuasPalavras.svg',
+            width: 40,
+            height: 40,
+          ),
         ),
         _CardAtalho(
           label: 'Alfabeto',
           onTap: () {},
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Text(
-                'A',
-                style: TextStyle(
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.navy,
-                ),
-              ),
-              SizedBox(width: 6),
-              _BrailleDots(),
-            ],
+          child: SvgPicture.asset(
+            'assets/vetores/imgAlfabeto.svg',
+            width: 40,
+            height: 40,
           ),
         ),
         _CardAtalho(
@@ -183,7 +180,7 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
             style: TextStyle(
               fontSize: 30,
               fontWeight: FontWeight.bold,
-              color: AppColors.navy,
+              color: Color(0xFF1B2161),
             ),
           ),
         ),
@@ -197,11 +194,12 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
   }
 }
 
-// ---------------------------------------------------------------------
-// Card reutilizável (borda navy, cantos arredondados)
-// ---------------------------------------------------------------------
 class _CardAtalho extends StatelessWidget {
-  const _CardAtalho({required this.label, required this.child, required this.onTap});
+  const _CardAtalho({
+    required this.label,
+    required this.child,
+    required this.onTap,
+  });
 
   final String label;
   final Widget child;
@@ -214,9 +212,12 @@ class _CardAtalho extends StatelessWidget {
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.cardBackground,
+          color: const Color(0xFFFCFCFF),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.navy, width: 1.4),
+          border: Border.all(
+            color: const Color(0xFF1B2161),
+            width: 1.4,
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -226,7 +227,7 @@ class _CardAtalho extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                color: AppColors.navy,
+                color: Color(0xFF1B2161),
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -238,52 +239,6 @@ class _CardAtalho extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------
-// Pontinhos estilo Braille usados no card "Alfabeto" (decorativo)
-// ---------------------------------------------------------------------
-class _BrailleDots extends StatelessWidget {
-  const _BrailleDots();
-
-  static const _pattern = [
-    [true, false],
-    [true, true],
-    [false, false],
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    const dotSize = 9.0;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: _pattern.map((linha) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: linha.map((preenchido) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Container(
-                  width: dotSize,
-                  height: dotSize,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: preenchido ? AppColors.navy : Colors.transparent,
-                    border: Border.all(color: AppColors.navy, width: 1.2),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------
-// "Flor" de círculos coloridos usada no card "Cores" (decorativo)
-// ---------------------------------------------------------------------
 class _FlorDeCores extends StatelessWidget {
   const _FlorDeCores({this.size = 48});
 
@@ -306,12 +261,14 @@ class _FlorDeCores extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: List.generate(_cores.length, (i) {
-          final angulo = (i * 60) * math.pi / 180;
+          final angulo = i * 60 * math.pi / 180;
           final raio = size * 0.26;
-          final dx = raio * math.cos(angulo);
-          final dy = raio * math.sin(angulo);
+
           return Transform.translate(
-            offset: Offset(dx, dy),
+            offset: Offset(
+              raio * math.cos(angulo),
+              raio * math.sin(angulo),
+            ),
             child: Container(
               width: size * 0.42,
               height: size * 0.42,
