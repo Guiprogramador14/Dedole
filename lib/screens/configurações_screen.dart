@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../utils/app_colors.dart';
 
 class TelaConfig extends StatefulWidget {
   const TelaConfig({super.key});
@@ -20,13 +21,12 @@ class _TelaConfigState extends State<TelaConfig> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildHeader(),
-              const SizedBox(height: 28),
-              _buildCampoTexto(),
-              const SizedBox(height: 16),
-              _buildBotaoSalvar(),
-              const SizedBox(height: 28),
-              Expanded(child: _buildGridDeAtalhos()),
+              const SizedBox(height: 65),
+
+              // LOGO
+              const Center(
+                child: Text("oi"),
+              ),
             ],
           ),
         ),
@@ -34,13 +34,16 @@ class _TelaConfigState extends State<TelaConfig> {
     );
   }
 
-  // -- Cabeçalho: seta de voltar, título e ícone de bluetooth ----------
+  // Cabeçalho
   Widget _buildHeader() {
     return Row(
       children: [
         IconButton(
           padding: EdgeInsets.zero,
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.navy),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.white,
+          ),
           onPressed: () => Navigator.maybePop(context),
         ),
         const Expanded(
@@ -48,7 +51,7 @@ class _TelaConfigState extends State<TelaConfig> {
             'Configurações',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: AppColors.navy,
+              color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -57,3 +60,4 @@ class _TelaConfigState extends State<TelaConfig> {
       ],
     );
   }
+}
