@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../widgets/SquareButton.dart';
+import 'tela_alfabeto_screen.dart';
 
 class TelaBancoDePalavras extends StatefulWidget {
   const TelaBancoDePalavras({super.key});
@@ -50,9 +52,7 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
               _buildBotaoSalvar(),
               const SizedBox(height: 28),
 
-              Expanded(
-                child: _buildGridDeAtalhos(),
-              ),
+              Expanded(child: _buildGridDeAtalhos()),
             ],
           ),
         ),
@@ -65,10 +65,7 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
       children: [
         IconButton(
           padding: EdgeInsets.zero,
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Color(0xFF1B2161),
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1B2161)),
           onPressed: () => Navigator.maybePop(context),
         ),
         const Expanded(
@@ -100,18 +97,12 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
       decoration: BoxDecoration(
         color: const Color(0xFFFCFCFF),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: const Color(0xFF1B2161),
-          width: 1.2,
-        ),
+        border: Border.all(color: const Color(0xFF1B2161), width: 1.2),
       ),
       child: TextField(
         controller: _controller,
         textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Color(0xFF1B2161),
-          fontSize: 16,
-        ),
+        style: const TextStyle(color: Color(0xFF1B2161), fontSize: 16),
         decoration: const InputDecoration(
           border: InputBorder.none,
           contentPadding: EdgeInsets.symmetric(vertical: 14),
@@ -127,10 +118,7 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
         onPressed: _salvarPalavra,
         style: OutlinedButton.styleFrom(
           backgroundColor: const Color(0xFFFCFCFF),
-          side: const BorderSide(
-            color: Color(0xFF1B2161),
-            width: 1.5,
-          ),
+          side: const BorderSide(color: Color(0xFF1B2161), width: 1.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -154,14 +142,19 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
       mainAxisSpacing: 16,
       childAspectRatio: 1.05,
       children: [
-        _CardAtalho(
-          label: 'Suas palavras',
-          onTap: () {},
-          child: SvgPicture.asset(
-            'assets/vetores/imgSuasPalavras.svg',
+        buildSquareButton(
+          icon: SvgPicture.asset(
+            'assets/vetores/imgAlfabeto.svg',
             width: 40,
             height: 40,
           ),
+          label: 'Alfabeto',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const TelaAlfabeto()),
+            );
+          },
         ),
         _CardAtalho(
           label: 'Alfabeto',
@@ -184,11 +177,7 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
             ),
           ),
         ),
-        _CardAtalho(
-          label: 'Cores',
-          onTap: () {},
-          child: const _FlorDeCores(),
-        ),
+        _CardAtalho(label: 'Cores', onTap: () {}, child: const _FlorDeCores()),
       ],
     );
   }
@@ -214,10 +203,7 @@ class _CardAtalho extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFFFCFCFF),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: const Color(0xFF1B2161),
-            width: 1.4,
-          ),
+          border: Border.all(color: const Color(0xFF1B2161), width: 1.4),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -265,10 +251,7 @@ class _FlorDeCores extends StatelessWidget {
           final raio = size * 0.26;
 
           return Transform.translate(
-            offset: Offset(
-              raio * math.cos(angulo),
-              raio * math.sin(angulo),
-            ),
+            offset: Offset(raio * math.cos(angulo), raio * math.sin(angulo)),
             child: Container(
               width: size * 0.42,
               height: size * 0.42,
