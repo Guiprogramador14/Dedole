@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/SquareButton.dart';
+import 'tela_alfabeto_screen.dart';
 
 class TelaBancoDePalavras extends StatefulWidget {
   const TelaBancoDePalavras({super.key});
@@ -149,17 +150,15 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
             width: 40,
             height: 40,
           ),
+        ),
+        buildSquareButton(
           label: 'Alfabeto',
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const TelaAlfabeto()),
+              MaterialPageRoute(builder: (context) => TelaAlfabeto()),
             );
           },
-        ),
-        buildSquareButton(
-          label: 'Alfabeto',
-          onTap: () {},
           icon: SvgPicture.asset(
             'assets/vetores/imgAlfabeto.svg',
             width: 40,

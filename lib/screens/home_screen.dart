@@ -29,40 +29,21 @@ class HomeScreen extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // ENVIAR
-            SizedBox(
+            buildSquareButton(
               width: double.infinity,
-              height: 70,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TelaEnviar(),
-                      ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(15),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: const Color(0xFF394A94),
-                        width: 5,
-                      ),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Center(
-                      child: SvgPicture.asset(
-                        'assets/vetores/imgEnviar.svg',
-                        width: 32,
-                        height: 32,
-                      ),
-                    ),
-                  ),
-                ),
+              height: 130,
+              icon: SvgPicture.asset(
+                'assets/vetores/imgEnviar.svg',
+                width: 40,
+                height: 40,
               ),
+              label: 'Enviar',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const TelaEnviar()),
+                );
+              },
             ),
 
             const SizedBox(height: 20),
