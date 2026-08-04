@@ -149,6 +149,13 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
             width: 40,
             height: 40,
           ),
+          label: 'Alfabeto',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const TelaAlfabeto()),
+            );
+          },
         ),
         buildSquareButton(
           label: 'Alfabeto',
