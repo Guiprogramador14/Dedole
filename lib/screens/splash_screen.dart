@@ -25,8 +25,8 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
+      begin: 0.5,
+      end: 1.5,
     ).animate(_controller);
 
     _startSplash();
