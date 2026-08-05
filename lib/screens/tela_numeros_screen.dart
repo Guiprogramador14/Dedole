@@ -1,38 +1,20 @@
 import 'package:flutter/material.dart';
 
-class TelaAlfabeto extends StatelessWidget {
-  TelaAlfabeto({super.key});
+class TelaNumeros extends StatelessWidget {
+  TelaNumeros({super.key});
 
-  final List<String> alfabeto = [
-    "Alfabeto completo",
-    "LETRA A",
-    "LETRA B",
-    "LETRA C",
-    "LETRA D",
-    "LETRA E",
-    "LETRA F",
-    "LETRA G",
-    "LETRA H",
-    "LETRA I",
-    "LETRA J",
-    "LETRA K",
-    "LETRA L",
-    "LETRA M",
-    "LETRA N",
-    "LETRA O",
-    "LETRA P",
-    "LETRA Q",
-    "LETRA R",
-    "LETRA S",
-    "LETRA T",
-    "LETRA U",
-    "LETRA V",
-    "LETRA W",
-    "LETRA X",
-    "LETRA Y",
-    "LETRA Z",
-  ];
-
+final List<String> numeros = [
+  "0",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+];
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -67,7 +49,7 @@ class TelaAlfabeto extends StatelessWidget {
 
                   const Expanded(
                     child: Text(
-                      "Alfabeto",
+                      "Números",
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w400,
@@ -106,7 +88,7 @@ class TelaAlfabeto extends StatelessWidget {
 
           Expanded(
             child: ListView.separated(
-              itemCount: alfabeto.length,
+              itemCount: numeros.length,
               separatorBuilder: (_, __) =>
                   const Divider(height: 1, color: Color(0xFFE5E5E5)),
               itemBuilder: (context, index) {
@@ -115,7 +97,7 @@ class TelaAlfabeto extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 14),
 
                   title: Text(
-                    alfabeto[index],
+                    numeros[index],
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w400,

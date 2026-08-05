@@ -1,36 +1,21 @@
 import 'package:flutter/material.dart';
 
-class TelaAlfabeto extends StatelessWidget {
-  TelaAlfabeto({super.key});
+class TelaCores extends StatelessWidget {
+  TelaCores({super.key});
 
-  final List<String> alfabeto = [
-    "Alfabeto completo",
-    "LETRA A",
-    "LETRA B",
-    "LETRA C",
-    "LETRA D",
-    "LETRA E",
-    "LETRA F",
-    "LETRA G",
-    "LETRA H",
-    "LETRA I",
-    "LETRA J",
-    "LETRA K",
-    "LETRA L",
-    "LETRA M",
-    "LETRA N",
-    "LETRA O",
-    "LETRA P",
-    "LETRA Q",
-    "LETRA R",
-    "LETRA S",
-    "LETRA T",
-    "LETRA U",
-    "LETRA V",
-    "LETRA W",
-    "LETRA X",
-    "LETRA Y",
-    "LETRA Z",
+  final List<Map<String, dynamic>> cores = [
+    {"nome": "Todas as cores", "cor": Colors.black},
+    {"nome": "VERMELHO", "cor": Colors.red},
+    {"nome": "AZUL", "cor": Colors.blue},
+    {"nome": "VERDE", "cor": Colors.green},
+    {"nome": "AMARELO", "cor": Colors.yellow},
+    {"nome": "LARANJA", "cor": Colors.orange},
+    {"nome": "ROXO", "cor": Colors.purple},
+    {"nome": "ROSA", "cor": Colors.pink},
+    {"nome": "MARROM", "cor": Colors.brown},
+    {"nome": "PRETO", "cor": Colors.black},
+    {"nome": "BRANCO", "cor": Colors.white},
+    {"nome": "CINZA", "cor": Colors.grey},
   ];
 
   @override
@@ -67,7 +52,7 @@ class TelaAlfabeto extends StatelessWidget {
 
                   const Expanded(
                     child: Text(
-                      "Alfabeto",
+                      "Cores",
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w400,
@@ -96,7 +81,7 @@ class TelaAlfabeto extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.fromLTRB(14, 18, 14, 10),
             child: Text(
-              "Selecione uma para transcrever",
+              "Selecione uma cor para transcrever",
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.black54,
@@ -106,7 +91,7 @@ class TelaAlfabeto extends StatelessWidget {
 
           Expanded(
             child: ListView.separated(
-              itemCount: alfabeto.length,
+              itemCount: cores.length,
               separatorBuilder: (_, __) =>
                   const Divider(height: 1, color: Color(0xFFE5E5E5)),
               itemBuilder: (context, index) {
@@ -114,8 +99,20 @@ class TelaAlfabeto extends StatelessWidget {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 14),
 
+                  leading: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: cores[index]["cor"],
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.black26,
+                      ),
+                    ),
+                  ),
+
                   title: Text(
-                    alfabeto[index],
+                    cores[index]["nome"],
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w400,
