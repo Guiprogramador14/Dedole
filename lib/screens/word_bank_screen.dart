@@ -175,7 +175,7 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
             );
           },
           icon: SvgPicture.asset(
-            'assets/vetores/imgNumeros.svg',
+            'assets/vetores/imgNúmeros.svg',
             width: 40,
             height: 40,
           ),
