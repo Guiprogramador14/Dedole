@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/SquareButton.dart';
 import 'tela_alfabeto_screen.dart';
+import 'tela_numeros_screen.dart';
 
 class TelaBancoDePalavras extends StatefulWidget {
   const TelaBancoDePalavras({super.key});
@@ -167,9 +168,14 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
         ),
         buildSquareButton(
           label: 'Números',
-          onTap: () {},
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => TelaNumeros()),
+            );
+          },
           icon: SvgPicture.asset(
-            'assets/vetores/imgNúmeros.svg',
+            'assets/vetores/imgNumeros.svg',
             width: 40,
             height: 40,
           ),
