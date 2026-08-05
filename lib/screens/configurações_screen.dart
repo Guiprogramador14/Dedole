@@ -1,63 +1,104 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../utils/app_colors.dart';
 
-class TelaConfig extends StatefulWidget {
-  const TelaConfig({super.key});
+class TelaConfiguracoes extends StatefulWidget {
+  const TelaConfiguracoes({super.key});
 
   @override
-  State<TelaConfig> createState() => _TelaConfigState();
+  State<TelaConfiguracoes> createState() => _TelaConfiguracoesState();
 }
 
-class _TelaConfigState extends State<TelaConfig> {
-  final TextEditingController _controller = TextEditingController();
+class _TelaConfiguracoesState extends State<TelaConfiguracoes> {
+
+  bool modoEscuro = false;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 65),
 
-              // LOGO
-              const Center(
-                child: Text("oi"),
-              ),
-            ],
+    return Scaffold(
+
+      backgroundColor: const Color(0xffF5F5F5),
+
+      appBar: AppBar(
+        title: const Text(
+          "Configurações",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
           ),
+        ),
+        centerTitle: true,
+      ),
+
+
+      body: Padding(
+
+        padding: const EdgeInsets.all(20),
+
+        child: Column(
+
+          crossAxisAlignment: CrossAxisAlignment.start,
+
+          children: [
+
+
+            const Text(
+              "Aparência",
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+
+            const SizedBox(height: 15),
+
+
+
+            Card(
+
+              elevation: 2,
+
+              child: SwitchListTile(
+
+                title: const Text(
+                  "Modo escuro",
+                  style: TextStyle(
+                    fontSize: 16,
+                  ),
+                ),
+
+
+                subtitle: const Text(
+                  "Alterar tema do aplicativo",
+                ),
+
+
+                secondary: const Icon(
+                  Icons.dark_mode,
+                ),
+
+
+                value: modoEscuro,
+
+
+                onChanged: (valor){
+
+                  setState(() {
+
+                    modoEscuro = valor;
+
+                  });
+
+                },
+
+              ),
+
+            ),
+
+
+
+          ],
         ),
       ),
-    );
-  }
-
-  // Cabeçalho
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        IconButton(
-          padding: EdgeInsets.zero,
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Colors.white,
-          ),
-          onPressed: () => Navigator.maybePop(context),
-        ),
-        const Expanded(
-          child: Text(
-            'Configurações',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

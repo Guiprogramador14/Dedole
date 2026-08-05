@@ -104,7 +104,7 @@ class HomeScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const TelaConfig(),
+                        builder: (context) => const TelaConfiguracoes(),
                       ),
                     );
                   },

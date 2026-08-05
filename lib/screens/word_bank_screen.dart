@@ -4,6 +4,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../widgets/SquareButton.dart';
 import 'tela_alfabeto_screen.dart';
 import 'tela_numeros_screen.dart';
+import 'tela_cores_screen.dart';
+import 'tela_suas_palavras_screen.dart';
 
 class TelaBancoDePalavras extends StatefulWidget {
   const TelaBancoDePalavras({super.key});
@@ -145,7 +147,12 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
       children: [
         buildSquareButton(
           label: 'Suas palavras',
-          onTap: () {},
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => TelaSuasPalavras()),
+            );
+          },
           icon: SvgPicture.asset(
             'assets/vetores/imgSuasPalavras.svg',
             width: 40,
@@ -182,7 +189,12 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
         ),
         buildSquareButton(
           label: 'Cores',
-          onTap: () {},
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => TelaCores()),
+            );
+          },
           icon: SvgPicture.asset(
             'assets/vetores/imgCores.svg',
             width: 40,
