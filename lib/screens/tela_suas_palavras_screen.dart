@@ -1,15 +1,31 @@
 import 'package:flutter/material.dart';
+import '../database/banco_dedole.dart';
 
-class TelaSuasPalavras extends StatelessWidget {
-  TelaSuasPalavras({super.key});
+class TelaSuasPalavras extends StatefulWidget {
+  const TelaSuasPalavras({super.key});
 
-  final List<String> palavras = [
-    "Pão",
-    "Aprender Braille para todos, Dedolê",
-    "Morango",
-    "Casa",
-    "Azul",
-  ];
+  @override
+  State<TelaSuasPalavras> createState() => _TelaSuasPalavrasState();
+}
+
+class _TelaSuasPalavrasState extends State<TelaSuasPalavras> {
+  List<Map<String, dynamic>> palavras = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarPalavras();
+  }
+
+  Future<void> _carregarPalavras() async {
+    final resultado = await BancoDedole.buscarPalavras();
+
+    if (!mounted) return;
+
+    setState(() {
+      palavras = resultado;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,10 +73,15 @@ class TelaSuasPalavras extends StatelessWidget {
                     width: 58,
                     height: 42,
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.black45),
+                      border: Border.all(
+                        color: Colors.black45,
+                      ),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Icon(Icons.edit_note, size: 30),
+                    child: const Icon(
+                      Icons.edit_note,
+                      size: 30,
+                    ),
                   ),
                 ],
               ),
@@ -84,58 +105,83 @@ class TelaSuasPalavras extends StatelessWidget {
           ),
 
           Expanded(
-            child: ListView.separated(
-              itemCount: palavras.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, color: Color(0xffE5E5E5)),
-              itemBuilder: (context, index) {
-                return ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 18),
+            child: palavras.isEmpty
+                ? const Center(
+                    child: Text(
+                      "Nenhuma palavra salva.",
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    itemCount: palavras.length,
+                    separatorBuilder: (_, __) => const Divider(
+                      height: 1,
+                      color: Color(0xffE5E5E5),
+                    ),
+                    itemBuilder: (context, index) {
+                      final palavra = palavras[index];
 
-                  title: Text(
-                    palavras[index],
-                    style: const TextStyle(fontSize: 22),
-                  ),
-
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        onPressed: () {},
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          size: 28,
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
                         ),
-                      ),
 
-                      IconButton(
-                        onPressed: () {},
-                        icon: const Icon(
-                          Icons.play_circle_outline,
-                          size: 34,
+                        title: Text(
+                          palavra['palavra'],
+                          style: const TextStyle(
+                            fontSize: 22,
+                          ),
                         ),
-                      ),
 
-                      PopupMenuButton<String>(
-                        icon: const Icon(Icons.more_vert),
-                        onSelected: (value) {},
-                        itemBuilder: (context) => const [
-                          PopupMenuItem(
-                            value: "editar",
-                            child: Text("Editar"),
-                          ),
-                          PopupMenuItem(
-                            value: "fila",
-                            child: Text("Adicionar à fila"),
-                          ),
-                        ],
-                      ),
-                    ],
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              onPressed: () async {
+                                final id = palavra['id'];
+
+                                await BancoDedole.excluirPalavra(id);
+
+                                await _carregarPalavras();
+                              },
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                size: 28,
+                              ),
+                            ),
+
+                            IconButton(
+                              onPressed: () {},
+                              icon: const Icon(
+                                Icons.play_circle_outline,
+                                size: 34,
+                              ),
+                            ),
+
+                            PopupMenuButton<String>(
+                              icon: const Icon(
+                                Icons.more_vert,
+                              ),
+                              onSelected: (value) {},
+                              itemBuilder: (context) => const [
+                                PopupMenuItem(
+                                  value: "editar",
+                                  child: Text("Editar"),
+                                ),
+                                PopupMenuItem(
+                                  value: "fila",
+                                  child: Text("Adicionar à fila"),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -148,7 +194,9 @@ class TelaSuasPalavras extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
           child: ListTile(
             dense: true,
-            title: const Text("Foi adicionado à fila!"),
+            title: const Text(
+              "Foi adicionado à fila!",
+            ),
             trailing: TextButton(
               onPressed: () {},
               child: const Text("Abrir"),
