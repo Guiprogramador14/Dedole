@@ -6,6 +6,7 @@ import 'tela_alfabeto_screen.dart';
 import 'tela_numeros_screen.dart';
 import 'tela_cores_screen.dart';
 import 'tela_suas_palavras_screen.dart';
+import '../database/banco_dedole.dart';
 
 class TelaBancoDePalavras extends StatefulWidget {
   const TelaBancoDePalavras({super.key});
@@ -23,14 +24,23 @@ class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
     super.dispose();
   }
 
-  void _salvarPalavra() {
-    final texto = _controller.text.trim();
+Future<void> _salvarPalavra() async {
+  final texto = _controller.text.trim();
 
-    if (texto.isEmpty) return;
+  if (texto.isEmpty) return;
 
-    // TODO: Converter para Braille e enviar ao ESP32
-    debugPrint('Palavra salva: $texto');
-  }
+  await BancoDedole.adicionarPalavra(texto);
+
+  _controller.clear();
+
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Palavra salva!'),
+    ),
+  );
+}
 
   void _abrirBluetooth() {
     // TODO: Tela de Bluetooth

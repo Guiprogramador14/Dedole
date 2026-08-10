@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../utils/app_actions.dart';
-import 'word_bank_screen.dart';
+import 'tela_banco_de_palavras.dart';
 import 'bluetooth_screen.dart';
 import 'enviar_screen.dart';
 import '../widgets/SquareButton.dart';
