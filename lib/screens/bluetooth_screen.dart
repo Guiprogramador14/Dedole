@@ -1,7 +1,24 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import '../utils/bluetooth_service.dart' as dedole;
+
+// ============================================================
+// UUID DO SERVIÇO E DA CHARACTERISTIC DO DEDOLÊ
+// ============================================================
+
+const String serviceUuid =
+    "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+
+const String controleCharacteristicUuid =
+    "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+
+// ============================================================
+// TELA
+// ============================================================
 
 class TelaBluetooth extends StatefulWidget {
   const TelaBluetooth({super.key});
@@ -15,8 +32,6 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   // CONFIGURAÇÃO
   // ============================================================
 
-  // Nome que o ESP32 deve anunciar via Bluetooth.
-  // Se o nome do seu ESP32 for diferente, altere aqui.
   static const String nomeEsp32 = "DEDOLE_ESP32";
 
   // ============================================================
@@ -25,12 +40,16 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
 
   BluetoothDevice? dispositivoConectado;
 
+  BluetoothCharacteristic? caracteristicaControle;
+
   bool procurando = false;
   bool conectando = false;
 
   List<ScanResult> dispositivos = [];
 
   StreamSubscription<List<ScanResult>>? scanSubscription;
+  StreamSubscription<BluetoothConnectionState>?
+      connectionSubscription;
 
   // ============================================================
   // CICLO DE VIDA
@@ -39,13 +58,13 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   @override
   void initState() {
     super.initState();
-
     iniciarBluetooth();
   }
 
   @override
   void dispose() {
     scanSubscription?.cancel();
+    connectionSubscription?.cancel();
     super.dispose();
   }
 
@@ -54,38 +73,48 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   // ============================================================
 
   Future<bool> pedirPermissoes() async {
-    final scan = await Permission.bluetoothScan.request();
-    final connect = await Permission.bluetoothConnect.request();
+    final scan =
+        await Permission.bluetoothScan.request();
 
-    // Mantido para compatibilidade com versões/configurações
-    // do Android que ainda exigem localização para Bluetooth.
-    final location = await Permission.locationWhenInUse.request();
+    final connect =
+        await Permission.bluetoothConnect.request();
 
-    if (scan.isGranted &&
-        connect.isGranted &&
-        (location.isGranted || !location.isDenied)) {
-      return true;
-    }
+    final location =
+        await Permission.locationWhenInUse.request();
 
-    return false;
+    debugPrint("Bluetooth Scan: $scan");
+    debugPrint("Bluetooth Connect: $connect");
+    debugPrint("Localização: $location");
+
+    return scan.isGranted &&
+        connect.isGranted;
   }
 
   // ============================================================
-  // INICIALIZAÇÃO DO BLUETOOTH
+  // INICIALIZAR BLUETOOTH
   // ============================================================
 
   Future<void> iniciarBluetooth() async {
     final permitido = await pedirPermissoes();
 
     if (!permitido) {
-      mostrarMensagem("Permissão do Bluetooth negada.");
+      mostrarMensagem(
+        "Permissões do Bluetooth negadas.",
+      );
       return;
     }
 
-    final estado = await FlutterBluePlus.adapterState.first;
+    final estado =
+        await FlutterBluePlus.adapterState.first;
+
+    debugPrint(
+      "Estado do Bluetooth: $estado",
+    );
 
     if (estado != BluetoothAdapterState.on) {
-      mostrarMensagem("Ligue o Bluetooth do celular.");
+      mostrarMensagem(
+        "Ligue o Bluetooth do celular.",
+      );
       return;
     }
 
@@ -93,43 +122,107 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   }
 
   // ============================================================
-  // PROCURAR ESP32
+  // PROCURAR DISPOSITIVOS
   // ============================================================
 
   Future<void> procurarDispositivos() async {
     if (conectando) return;
 
-    setState(() {
-      procurando = true;
-      dispositivos.clear();
-    });
+    if (mounted) {
+      setState(() {
+        procurando = true;
+        dispositivos.clear();
+      });
+    }
 
     try {
-      // Para uma busca anterior, caso exista.
       await FlutterBluePlus.stopScan();
 
-      // Cancela o listener anterior para evitar
-      // vários listeners acumulados.
       await scanSubscription?.cancel();
 
-      scanSubscription = FlutterBluePlus.scanResults.listen((resultados) {
-        if (!mounted) return;
+      // ========================================================
+      // ESCUTA DOS RESULTADOS
+      // ========================================================
 
-        // FILTRO DO ESP32
-        final encontrados = resultados.where((resultado) {
-          final nome = resultado.device.platformName.trim();
+      scanSubscription =
+          FlutterBluePlus.scanResults.listen(
+        (resultados) {
+          if (!mounted) return;
 
-          return nome == nomeEsp32;
-        }).toList();
+          for (final resultado in resultados) {
+            final nomePlatform =
+                resultado.device.platformName.trim();
 
-        setState(() {
-          dispositivos = encontrados;
-        });
-      });
+            final nomeAnunciado =
+                resultado.advertisementData.advName.trim();
 
-      // Começa a procurar dispositivos Bluetooth.
+            debugPrint(
+              "BLE ENCONTRADO:"
+              " nome=$nomePlatform"
+              " | advName=$nomeAnunciado"
+              " | id=${resultado.device.remoteId}",
+            );
+          }
+
+          // ====================================================
+          // FILTRA O DEDOLÊ
+          // ====================================================
+
+          final encontrados =
+              resultados.where((resultado) {
+            final nomePlatform =
+                resultado.device.platformName.trim();
+
+            final nomeAnunciado =
+                resultado.advertisementData.advName.trim();
+
+            final encontrouPorNome =
+                nomePlatform == nomeEsp32 ||
+                nomeAnunciado == nomeEsp32;
+
+            // Também verifica o UUID do serviço.
+            final possuiServico =
+                resultado.advertisementData.serviceUuids
+                    .any(
+              (uuid) =>
+                  uuid.toString().toLowerCase() ==
+                  serviceUuid.toLowerCase(),
+            );
+
+            return encontrouPorNome ||
+                possuiServico;
+          }).toList();
+
+          setState(() {
+            dispositivos = encontrados;
+          });
+        },
+        onError: (erro) {
+          debugPrint(
+            "Erro no scan BLE: $erro",
+          );
+        },
+      );
+
+      // ========================================================
+      // INICIAR SCAN
+      // ========================================================
+
+      debugPrint(
+        "================================",
+      );
+      debugPrint(
+        "INICIANDO SCAN BLE",
+      );
+      debugPrint(
+        "Procurando: $nomeEsp32",
+      );
+      debugPrint(
+        "================================",
+      );
+
       await FlutterBluePlus.startScan(
-        timeout: const Duration(seconds: 5),
+        timeout: const Duration(seconds: 10),
       );
 
       if (!mounted) return;
@@ -137,6 +230,10 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
       setState(() {
         procurando = false;
       });
+
+      debugPrint(
+        "SCAN FINALIZADO",
+      );
     } catch (e) {
       if (!mounted) return;
 
@@ -144,8 +241,13 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
         procurando = false;
       });
 
-      mostrarMensagem("Erro ao procurar dispositivos.");
-      debugPrint("Erro no Bluetooth: $e");
+      debugPrint(
+        "ERRO AO PROCURAR: $e",
+      );
+
+      mostrarMensagem(
+        "Erro ao procurar dispositivos.",
+      );
     }
   }
 
@@ -153,7 +255,9 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   // CONECTAR AO ESP32
   // ============================================================
 
-  Future<void> conectar(BluetoothDevice dispositivo) async {
+  Future<void> conectar(
+    BluetoothDevice dispositivo,
+  ) async {
     if (conectando) return;
 
     setState(() {
@@ -161,51 +265,197 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
     });
 
     try {
-      // Para a procura antes de conectar.
       await FlutterBluePlus.stopScan();
 
-      debugPrint("Conectando ao ESP32...");
-      debugPrint("Nome: ${dispositivo.platformName}");
-      debugPrint("ID: ${dispositivo.remoteId}");
+      debugPrint(
+        "================================",
+      );
+      debugPrint(
+        "CONECTANDO AO DEDOLÊ",
+      );
+      debugPrint(
+        "Nome: ${dispositivo.platformName}",
+      );
+      debugPrint(
+        "ID: ${dispositivo.remoteId}",
+      );
+      debugPrint(
+        "================================",
+      );
+
+      // ========================================================
+      // CONECTAR
+      // ========================================================
 
       await dispositivo.connect(
         timeout: const Duration(seconds: 10),
       );
 
-      debugPrint("ESP32 conectado!");
+      debugPrint(
+        "ESP32 conectado!",
+      );
 
-      // Descobre os serviços Bluetooth disponíveis.
-      final services = await dispositivo.discoverServices();
+      // ========================================================
+      // MONITORAR CONEXÃO
+      // ========================================================
 
-      debugPrint("Serviços encontrados:");
+      await connectionSubscription?.cancel();
+
+      connectionSubscription =
+          dispositivo.connectionState.listen(
+        (estado) {
+          debugPrint(
+            "Estado da conexão: $estado",
+          );
+
+          if (estado ==
+              BluetoothConnectionState
+                  .disconnected) {
+            if (mounted) {
+              setState(() {
+                dispositivoConectado = null;
+                caracteristicaControle = null;
+              });
+            }
+          }
+        },
+      );
+
+      // ========================================================
+      // DESCOBRIR SERVIÇOS
+      // ========================================================
+
+      final services =
+          await dispositivo.discoverServices();
+
+      debugPrint(
+        "================================",
+      );
+      debugPrint(
+        "SERVIÇOS ENCONTRADOS",
+      );
+      debugPrint(
+        "================================",
+      );
+
+      BluetoothCharacteristic?
+          controleEncontrado;
 
       for (final service in services) {
-        debugPrint("Serviço: ${service.uuid}");
+        debugPrint(
+          "Serviço: ${service.uuid}",
+        );
 
-        for (final characteristic in service.characteristics) {
-          debugPrint("  Característica: ${characteristic.uuid}");
+        for (final characteristic
+            in service.characteristics) {
+          debugPrint(
+            "  Characteristic: "
+            "${characteristic.uuid}",
+          );
+
+          // ==================================================
+          // ENCONTRA A CHARACTERISTIC DOS COMANDOS
+          // ==================================================
+
+          if (characteristic.uuid
+                  .toString()
+                  .toLowerCase() ==
+              controleCharacteristicUuid
+                  .toLowerCase()) {
+            controleEncontrado =
+                characteristic;
+
+            debugPrint(
+              ">>> CHARACTERISTIC DO DEDOLÊ ENCONTRADA!",
+            );
+          }
         }
       }
+
+      // ========================================================
+      // VERIFICAR SE ENCONTROU
+      // ========================================================
+
+      if (controleEncontrado == null) {
+        debugPrint(
+          "ERRO: Characteristic do Dedolê não encontrada.",
+        );
+
+        await dispositivo.disconnect();
+
+        if (!mounted) return;
+
+        setState(() {
+          conectando = false;
+          dispositivoConectado = null;
+        });
+
+        mostrarMensagem(
+          "Serviço de controle do Dedolê não encontrado.",
+        );
+
+        return;
+      }
+
+      // ========================================================
+      // SALVAR CHARACTERISTIC
+      // ========================================================
+
+      caracteristicaControle =
+          controleEncontrado;
+
+      // ========================================================
+      // CONFIGURAR BLUETOOTH SERVICE
+      // ========================================================
+
+      await dedole.BluetoothService.instance
+          .configurar(dispositivo);
+
+      debugPrint(
+        ">>> BLUETOOTH SERVICE CONFIGURADO!",
+      );
+
+      // ========================================================
+      // SALVAR DISPOSITIVO
+      // ========================================================
 
       if (!mounted) return;
 
       setState(() {
-        dispositivoConectado = dispositivo;
+        dispositivoConectado =
+            dispositivo;
+
         conectando = false;
       });
 
-      mostrarMensagem("ESP32 conectado com sucesso!");
+      mostrarMensagem(
+        "ESP32 conectado com sucesso!",
+      );
     } catch (e) {
+      debugPrint(
+        "================================",
+      );
+      debugPrint(
+        "ERRO AO CONECTAR",
+      );
+      debugPrint(
+        "$e",
+      );
+      debugPrint(
+        "================================",
+      );
+
       if (!mounted) return;
 
       setState(() {
         conectando = false;
         dispositivoConectado = null;
+        caracteristicaControle = null;
       });
 
-      debugPrint("Erro ao conectar: $e");
-
-      mostrarMensagem("Não foi possível conectar ao ESP32.");
+      mostrarMensagem(
+        "Não foi possível conectar ao ESP32.",
+      );
     }
   }
 
@@ -214,10 +464,16 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   // ============================================================
 
   Future<void> desconectar() async {
-    if (dispositivoConectado == null) return;
+    if (dispositivoConectado == null) {
+      return;
+    }
 
     try {
       await dispositivoConectado!.disconnect();
+
+      await connectionSubscription?.cancel();
+
+      caracteristicaControle = null;
 
       if (!mounted) return;
 
@@ -225,9 +481,13 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
         dispositivoConectado = null;
       });
 
-      mostrarMensagem("ESP32 desconectado.");
+      mostrarMensagem(
+        "ESP32 desconectado.",
+      );
     } catch (e) {
-      debugPrint("Erro ao desconectar: $e");
+      debugPrint(
+        "Erro ao desconectar: $e",
+      );
     }
   }
 
@@ -235,7 +495,9 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   // MENSAGEM
   // ============================================================
 
-  void mostrarMensagem(String mensagem) {
+  void mostrarMensagem(
+    String mensagem,
+  ) {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context)
@@ -243,17 +505,20 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
       ..showSnackBar(
         SnackBar(
           content: Text(mensagem),
-          behavior: SnackBarBehavior.floating,
+          behavior:
+              SnackBarBehavior.floating,
         ),
       );
   }
 
   // ============================================================
-  // TELA
+  // BUILD
   // ============================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -263,86 +528,95 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
           ),
         ),
         centerTitle: true,
-
-        // Botão atualizar
         actions: [
           IconButton(
-            tooltip: "Procurar novamente",
-            onPressed: procurando || conectando
-                ? null
-                : procurarDispositivos,
-            icon: const Icon(Icons.refresh),
+            tooltip:
+                "Procurar novamente",
+            onPressed:
+                procurando || conectando
+                    ? null
+                    : procurarDispositivos,
+            icon: const Icon(
+              Icons.refresh,
+            ),
           ),
         ],
       ),
 
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(20),
+          padding:
+              const EdgeInsets.all(20),
           child: Column(
             children: [
-              // ==================================================
-              // CARD DE STATUS
-              // ==================================================
-
               _buildStatusCard(),
 
-              const SizedBox(height: 25),
-
-              // ==================================================
-              // TÍTULO
-              // ==================================================
+              const SizedBox(
+                height: 25,
+              ),
 
               Align(
-                alignment: Alignment.centerLeft,
+                alignment:
+                    Alignment.centerLeft,
                 child: Text(
                   "ESP32 disponível",
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(
+                        fontWeight:
+                            FontWeight.bold,
                       ),
                 ),
               ),
 
-              const SizedBox(height: 12),
-
-              // ==================================================
-              // CONTEÚDO
-              // ==================================================
-
-              Expanded(
-                child: _buildConteudo(),
+              const SizedBox(
+                height: 12,
               ),
 
-              const SizedBox(height: 15),
+              Expanded(
+                child:
+                    _buildConteudo(),
+              ),
 
-              // ==================================================
-              // BOTÃO PROCURAR
-              // ==================================================
+              const SizedBox(
+                height: 15,
+              ),
 
               SizedBox(
                 width: double.infinity,
                 height: 52,
-                child: ElevatedButton.icon(
-                  onPressed: procurando || conectando
-                      ? null
-                      : procurarDispositivos,
+                child:
+                    ElevatedButton.icon(
+                  onPressed:
+                      procurando ||
+                              conectando
+                          ? null
+                          : procurarDispositivos,
                   icon: procurando
                       ? const SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(
+                          child:
+                              CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color:
+                                Colors.white,
                           ),
                         )
-                      : const Icon(Icons.bluetooth_searching),
+                      : const Icon(
+                          Icons
+                              .bluetooth_searching,
+                        ),
                   label: Text(
                     procurando
                         ? "Procurando..."
                         : "Procurar ESP32",
-                    style: const TextStyle(
+                    style:
+                        const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
                 ),
@@ -359,20 +633,27 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   // ============================================================
 
   Widget _buildStatusCard() {
-    final conectado = dispositivoConectado != null;
+    final conectado =
+        dispositivoConectado != null;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding:
+          const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius:
+            BorderRadius.circular(18),
         color: conectado
-            ? Colors.green.withOpacity(0.12)
-            : Colors.blue.withOpacity(0.10),
+            ? Colors.green
+                .withOpacity(0.12)
+            : Colors.blue
+                .withOpacity(0.10),
         border: Border.all(
           color: conectado
-              ? Colors.green.withOpacity(0.35)
-              : Colors.blue.withOpacity(0.25),
+              ? Colors.green
+                  .withOpacity(0.35)
+              : Colors.blue
+                  .withOpacity(0.25),
         ),
       ),
       child: Row(
@@ -380,15 +661,19 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
           Container(
             width: 52,
             height: 52,
-            decoration: BoxDecoration(
+            decoration:
+                BoxDecoration(
               shape: BoxShape.circle,
               color: conectado
-                  ? Colors.green.withOpacity(0.18)
-                  : Colors.blue.withOpacity(0.15),
+                  ? Colors.green
+                      .withOpacity(0.18)
+                  : Colors.blue
+                      .withOpacity(0.15),
             ),
             child: Icon(
               conectado
-                  ? Icons.bluetooth_connected
+                  ? Icons
+                      .bluetooth_connected
                   : Icons.bluetooth,
               color: conectado
                   ? Colors.green
@@ -397,33 +682,46 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
             ),
           ),
 
-          const SizedBox(width: 15),
+          const SizedBox(
+            width: 15,
+          ),
 
           Expanded(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
                 Text(
                   conectado
                       ? "ESP32 conectado"
                       : "Bluetooth",
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontSize: 17,
-                    fontWeight: FontWeight.bold,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
 
-                const SizedBox(height: 4),
+                const SizedBox(
+                  height: 4,
+                ),
 
                 Text(
                   conectado
-                      ? dispositivoConectado!.platformName
+                      ? (dispositivoConectado!
+                              .platformName
+                              .isEmpty
+                          ? nomeEsp32
+                          : dispositivoConectado!
+                              .platformName)
                       : procurando
                           ? "Procurando o seu ESP32..."
                           : "Pronto para conectar",
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey.shade600,
+                    color:
+                        Colors.grey.shade600,
                   ),
                 ),
               ],
@@ -433,7 +731,8 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
           if (conectado)
             IconButton(
               tooltip: "Desconectar",
-              onPressed: desconectar,
+              onPressed:
+                  desconectar,
               icon: const Icon(
                 Icons.link_off,
                 color: Colors.red,
@@ -445,29 +744,37 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
   }
 
   // ============================================================
-  // CONTEÚDO DA LISTA
+  // CONTEÚDO
   // ============================================================
 
   Widget _buildConteudo() {
-    // Está conectando
+    // ==========================================================
+    // CONECTANDO
+    // ==========================================================
+
     if (conectando) {
       return const Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+              MainAxisAlignment.center,
           children: [
             SizedBox(
               width: 45,
               height: 45,
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             ),
 
-            SizedBox(height: 20),
+            SizedBox(
+              height: 20,
+            ),
 
             Text(
               "Conectando ao ESP32...",
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w500,
+                fontWeight:
+                    FontWeight.w500,
               ),
             ),
           ],
@@ -475,11 +782,15 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
       );
     }
 
-    // Está procurando
+    // ==========================================================
+    // PROCURANDO
+    // ==========================================================
+
     if (procurando) {
       return const Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+              MainAxisAlignment.center,
           children: [
             Icon(
               Icons.bluetooth_searching,
@@ -487,17 +798,22 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
               color: Colors.blue,
             ),
 
-            SizedBox(height: 15),
+            SizedBox(
+              height: 15,
+            ),
 
             Text(
               "Procurando seu ESP32...",
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w500,
+                fontWeight:
+                    FontWeight.w500,
               ),
             ),
 
-            SizedBox(height: 5),
+            SizedBox(
+              height: 5,
+            ),
 
             Text(
               "Isso pode levar alguns segundos.",
@@ -510,35 +826,48 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
       );
     }
 
-    // Nenhum ESP32 encontrado
+    // ==========================================================
+    // NENHUM DISPOSITIVO
+    // ==========================================================
+
     if (dispositivos.isEmpty) {
       return Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment:
+              MainAxisAlignment.center,
           children: [
             Icon(
               Icons.bluetooth_disabled,
               size: 70,
-              color: Colors.grey.shade400,
+              color:
+                  Colors.grey.shade400,
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(
+              height: 15,
+            ),
 
             const Text(
               "Nenhum ESP32 encontrado",
               style: TextStyle(
                 fontSize: 17,
-                fontWeight: FontWeight.bold,
+                fontWeight:
+                    FontWeight.bold,
               ),
             ),
 
-            const SizedBox(height: 7),
+            const SizedBox(
+              height: 7,
+            ),
 
             Text(
-              "Verifique se o ESP32 está ligado\ne com o Bluetooth ativo.",
-              textAlign: TextAlign.center,
+              "Verifique se o ESP32 está ligado\n"
+              "e com o Bluetooth ativo.",
+              textAlign:
+                  TextAlign.center,
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color:
+                    Colors.grey.shade600,
               ),
             ),
           ],
@@ -546,35 +875,73 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
       );
     }
 
-    // Lista dos ESP32 encontrados
-    return ListView.builder(
-      itemCount: dispositivos.length,
-      itemBuilder: (context, index) {
-        final resultado = dispositivos[index];
+    // ==========================================================
+    // LISTA
+    // ==========================================================
 
-        final dispositivo = resultado.device;
+    return ListView.builder(
+      itemCount:
+          dispositivos.length,
+
+      itemBuilder:
+          (context, index) {
+        final resultado =
+            dispositivos[index];
+
+        final dispositivo =
+            resultado.device;
+
+        final nome =
+            dispositivo
+                    .platformName
+                    .isNotEmpty
+                ? dispositivo
+                    .platformName
+                : resultado
+                    .advertisementData
+                    .advName
+                    .isNotEmpty
+                    ? resultado
+                        .advertisementData
+                        .advName
+                    : "DEDOLE_ESP32";
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+          margin:
+              const EdgeInsets.only(
+            bottom: 12,
+          ),
+          decoration:
+              BoxDecoration(
+            borderRadius:
+                BorderRadius.circular(
+              16,
+            ),
             border: Border.all(
-              color: Colors.grey.withOpacity(0.2),
+              color: Colors.grey
+                  .withOpacity(0.2),
             ),
           ),
+
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
+            contentPadding:
+                const EdgeInsets
+                    .symmetric(
               horizontal: 16,
               vertical: 8,
             ),
 
-            // Ícone
             leading: Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(14),
+              decoration:
+                  BoxDecoration(
+                color: Colors.blue
+                    .withOpacity(0.12),
+                borderRadius:
+                    BorderRadius.circular(
+                  14,
+                ),
               ),
               child: const Icon(
                 Icons.developer_board,
@@ -582,37 +949,44 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
               ),
             ),
 
-            // Nome
             title: Text(
-              dispositivo.platformName.isEmpty
-                  ? nomeEsp32
-                  : dispositivo.platformName,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
+              nome,
+              style:
+                  const TextStyle(
+                fontWeight:
+                    FontWeight.bold,
                 fontSize: 16,
               ),
             ),
 
-            // ID
             subtitle: Padding(
-              padding: const EdgeInsets.only(top: 5),
+              padding:
+                  const EdgeInsets.only(
+                top: 5,
+              ),
               child: Text(
-                dispositivo.remoteId.toString(),
+                dispositivo
+                    .remoteId
+                    .toString(),
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey.shade600,
+                  color: Colors
+                      .grey.shade600,
                 ),
               ),
             ),
 
-            // Botão
-            trailing: const Icon(
-              Icons.arrow_forward_ios,
+            trailing:
+                const Icon(
+              Icons
+                  .arrow_forward_ios,
               size: 18,
             ),
 
             onTap: () {
-              conectar(dispositivo);
+              conectar(
+                dispositivo,
+              );
             },
           ),
         );
