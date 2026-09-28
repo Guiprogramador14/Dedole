@@ -10,13 +10,9 @@ class TelaAlfabeto extends StatefulWidget {
 
 class _TelaAlfabetoState extends State<TelaAlfabeto> {
   bool enviando = false;
-  bool letraAAtiva = false;
+  String? letraAtiva;
 
-  // ============================================================
-  // ENVIAR LETRA A PARA O ESP32
-  // ============================================================
-
-  Future<void> enviarLetraA() async {
+  Future<void> enviarLetra(String letra) async {
     if (enviando) return;
 
     setState(() {
@@ -24,19 +20,19 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
     });
 
     try {
-      await BluetoothService.instance.enviarComando("A");
+      await BluetoothService.instance.enviarComando(letra);
 
       if (!mounted) return;
 
       setState(() {
-        letraAAtiva = true;
+        letraAtiva = letra;
         enviando = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            "Letra A enviada. Agora leia os pinos e pressione os botões correspondentes.",
+            "Letra $letra enviada para o Dedolê.",
           ),
           behavior: SnackBarBehavior.floating,
         ),
@@ -50,7 +46,7 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Erro ao enviar a letra A: $e"),
+          content: Text("Erro ao enviar a letra $letra: $e"),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -81,10 +77,8 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
 
               child: Row(
                 children: [
-
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-
                     icon: const Icon(
                       Icons.arrow_back_ios,
                       color: Color(0xFF0A2C73),
@@ -120,7 +114,6 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
         crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-
           const Padding(
             padding: EdgeInsets.fromLTRB(14, 18, 14, 10),
 
@@ -133,18 +126,17 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
             ),
           ),
 
-          // =====================================================
-          // LETRA A
-          // =====================================================
-
           Expanded(
             child: ListView(
               children: [
-
                 const Divider(
                   height: 1,
                   color: Color(0xFFE5E5E5),
                 ),
+
+                // =========================
+                // LETRA A
+                // =========================
 
                 ListTile(
                   contentPadding:
@@ -158,7 +150,7 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
                     ),
                   ),
 
-                  subtitle: letraAAtiva
+                  subtitle: letraAtiva == "A"
                       ? const Text(
                           "Letra A apresentada no Dedolê",
                           style: TextStyle(
@@ -170,7 +162,9 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
                   trailing: InkWell(
                     borderRadius: BorderRadius.circular(30),
 
-                    onTap: enviando ? null : enviarLetraA,
+                    onTap: enviando
+                        ? null
+                        : () => enviarLetra("A"),
 
                     child: Container(
                       width: 48,
@@ -180,29 +174,93 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
                         shape: BoxShape.circle,
 
                         border: Border.all(
-                          color: letraAAtiva
+                          color: letraAtiva == "A"
                               ? Colors.green
                               : Colors.black,
+
                           width: 1.5,
                         ),
                       ),
 
-                      child: enviando
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Icon(
-                              letraAAtiva
-                                  ? Icons.check
-                                  : Icons.play_arrow,
-                              size: 26,
-                              color: letraAAtiva
-                                  ? Colors.green
-                                  : Colors.black,
-                            ),
+                      child: Icon(
+                        letraAtiva == "A"
+                            ? Icons.check
+                            : Icons.play_arrow,
+
+                        size: 26,
+
+                        color: letraAtiva == "A"
+                            ? Colors.green
+                            : Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const Divider(
+                  height: 1,
+                  color: Color(0xFFE5E5E5),
+                ),
+
+                // =========================
+                // LETRA B
+                // =========================
+
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 14),
+
+                  title: const Text(
+                    "LETRA B",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+
+                  subtitle: letraAtiva == "B"
+                      ? const Text(
+                          "Letra B apresentada no Dedolê",
+                          style: TextStyle(
+                            color: Colors.green,
+                          ),
+                        )
+                      : null,
+
+                  trailing: InkWell(
+                    borderRadius: BorderRadius.circular(30),
+
+                    onTap: enviando
+                        ? null
+                        : () => enviarLetra("B"),
+
+                    child: Container(
+                      width: 48,
+                      height: 48,
+
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+
+                        border: Border.all(
+                          color: letraAtiva == "B"
+                              ? Colors.green
+                              : Colors.black,
+
+                          width: 1.5,
+                        ),
+                      ),
+
+                      child: Icon(
+                        letraAtiva == "B"
+                            ? Icons.check
+                            : Icons.play_arrow,
+
+                        size: 26,
+
+                        color: letraAtiva == "B"
+                            ? Colors.green
+                            : Colors.black,
+                      ),
                     ),
                   ),
                 ),
