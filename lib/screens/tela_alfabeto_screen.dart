@@ -53,6 +53,76 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
     }
   }
 
+  Widget criarLetra(String letra) {
+    return Column(
+      children: [
+        ListTile(
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14),
+
+          title: Text(
+            "LETRA $letra",
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+
+          subtitle: letraAtiva == letra
+              ? Text(
+                  "Letra $letra apresentada no Dedolê",
+                  style: const TextStyle(
+                    color: Colors.green,
+                  ),
+                )
+              : null,
+
+          trailing: InkWell(
+            borderRadius: BorderRadius.circular(30),
+
+            onTap: enviando
+                ? null
+                : () => enviarLetra(letra),
+
+            child: Container(
+              width: 48,
+              height: 48,
+
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+
+                border: Border.all(
+                  color: letraAtiva == letra
+                      ? Colors.green
+                      : Colors.black,
+
+                  width: 1.5,
+                ),
+              ),
+
+              child: Icon(
+                letraAtiva == letra
+                    ? Icons.check
+                    : Icons.play_arrow,
+
+                size: 26,
+
+                color: letraAtiva == letra
+                    ? Colors.green
+                    : Colors.black,
+              ),
+            ),
+          ),
+        ),
+
+        const Divider(
+          height: 1,
+          color: Color(0xFFE5E5E5),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,6 +149,7 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.pop(context),
+
                     icon: const Icon(
                       Icons.arrow_back_ios,
                       color: Color(0xFF0A2C73),
@@ -129,146 +200,32 @@ class _TelaAlfabetoState extends State<TelaAlfabeto> {
           Expanded(
             child: ListView(
               children: [
-                const Divider(
-                  height: 1,
-                  color: Color(0xFFE5E5E5),
-                ),
-
-                // =========================
-                // LETRA A
-                // =========================
-
-                ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 14),
-
-                  title: const Text(
-                    "LETRA A",
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-
-                  subtitle: letraAtiva == "A"
-                      ? const Text(
-                          "Letra A apresentada no Dedolê",
-                          style: TextStyle(
-                            color: Colors.green,
-                          ),
-                        )
-                      : null,
-
-                  trailing: InkWell(
-                    borderRadius: BorderRadius.circular(30),
-
-                    onTap: enviando
-                        ? null
-                        : () => enviarLetra("A"),
-
-                    child: Container(
-                      width: 48,
-                      height: 48,
-
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-
-                        border: Border.all(
-                          color: letraAtiva == "A"
-                              ? Colors.green
-                              : Colors.black,
-
-                          width: 1.5,
-                        ),
-                      ),
-
-                      child: Icon(
-                        letraAtiva == "A"
-                            ? Icons.check
-                            : Icons.play_arrow,
-
-                        size: 26,
-
-                        color: letraAtiva == "A"
-                            ? Colors.green
-                            : Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const Divider(
-                  height: 1,
-                  color: Color(0xFFE5E5E5),
-                ),
-
-                // =========================
-                // LETRA B
-                // =========================
-
-                ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 14),
-
-                  title: const Text(
-                    "LETRA B",
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-
-                  subtitle: letraAtiva == "B"
-                      ? const Text(
-                          "Letra B apresentada no Dedolê",
-                          style: TextStyle(
-                            color: Colors.green,
-                          ),
-                        )
-                      : null,
-
-                  trailing: InkWell(
-                    borderRadius: BorderRadius.circular(30),
-
-                    onTap: enviando
-                        ? null
-                        : () => enviarLetra("B"),
-
-                    child: Container(
-                      width: 48,
-                      height: 48,
-
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-
-                        border: Border.all(
-                          color: letraAtiva == "B"
-                              ? Colors.green
-                              : Colors.black,
-
-                          width: 1.5,
-                        ),
-                      ),
-
-                      child: Icon(
-                        letraAtiva == "B"
-                            ? Icons.check
-                            : Icons.play_arrow,
-
-                        size: 26,
-
-                        color: letraAtiva == "B"
-                            ? Colors.green
-                            : Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const Divider(
-                  height: 1,
-                  color: Color(0xFFE5E5E5),
-                ),
+                criarLetra("A"),
+                criarLetra("B"),
+                criarLetra("C"),
+                criarLetra("D"),
+                criarLetra("E"),
+                criarLetra("F"),
+                criarLetra("G"),
+                criarLetra("H"),
+                criarLetra("I"),
+                criarLetra("J"),
+                criarLetra("K"),
+                criarLetra("L"),
+                criarLetra("M"),
+                criarLetra("N"),
+                criarLetra("O"),
+                criarLetra("P"),
+                criarLetra("Q"),
+                criarLetra("R"),
+                criarLetra("S"),
+                criarLetra("T"),
+                criarLetra("U"),
+                criarLetra("V"),
+                criarLetra("W"),
+                criarLetra("X"),
+                criarLetra("Y"),
+                criarLetra("Z"),
               ],
             ),
           ),
