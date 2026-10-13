@@ -3,22 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/bluetooth_service.dart' as dedole;
-
-// ============================================================
-// UUID DO SERVIÇO E DA CHARACTERISTIC DO DEDOLÊ
-// ============================================================
-
-const String serviceUuid =
-    "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-
-const String controleCharacteristicUuid =
-    "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-
-// ============================================================
-// TELA
-// ============================================================
 
 class TelaBluetooth extends StatefulWidget {
   const TelaBluetooth({super.key});
@@ -28,969 +15,582 @@ class TelaBluetooth extends StatefulWidget {
 }
 
 class _TelaBluetoothState extends State<TelaBluetooth> {
-  // ============================================================
-  // CONFIGURAÇÃO
-  // ============================================================
+  static const Color azul = Color(0xFF1B2161);
+  static const Color fundo = Color(0xFFF6F7FF);
+  static const Color branco = Color(0xFFFCFCFF);
+  static const Duration tempoExpiracao = Duration(seconds: 20);
 
-  static const String nomeEsp32 = "DEDOLE_ESP32";
-
-  // ============================================================
-  // VARIÁVEIS
-  // ============================================================
-
-  BluetoothDevice? dispositivoConectado;
-
-  BluetoothCharacteristic? caracteristicaControle;
-
-  bool procurando = false;
-  bool conectando = false;
-
-  List<ScanResult> dispositivos = [];
+  final dedole.BluetoothService bluetooth = dedole.BluetoothService.instance;
+  final TextEditingController pesquisa = TextEditingController();
+  final Map<String, ScanResult> encontrados = {};
+  final Map<String, DateTime> vistosEm = {};
+  final Map<String, String> apelidos = {};
 
   StreamSubscription<List<ScanResult>>? scanSubscription;
-  StreamSubscription<BluetoothConnectionState>?
-      connectionSubscription;
+  StreamSubscription<BluetoothAdapterState>? adapterSubscription;
+  Timer? limpezaTimer;
 
-  // ============================================================
-  // CICLO DE VIDA
-  // ============================================================
+  bool procurando = false;
+  bool buscaAutomatica = true;
+  bool rotinaAtiva = false;
+  bool conectando = false;
+  bool somenteDedole = true;
+  bool bluetoothLigado = false;
 
   @override
   void initState() {
     super.initState();
-    iniciarBluetooth();
+    bluetooth.estadoConexao.addListener(atualizar);
+    limpezaTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => limparAntigos(),
+    );
+    adapterSubscription = FlutterBluePlus.adapterState.listen((estado) {
+      if (!mounted) return;
+      final ligado = estado == BluetoothAdapterState.on;
+      setState(() {
+        bluetoothLigado = ligado;
+        if (!ligado) {
+          encontrados.clear();
+          vistosEm.clear();
+        }
+      });
+      if (!ligado) {
+        suspenderBusca();
+      } else if (buscaAutomatica && !bluetooth.conectado && !conectando) {
+        iniciarBusca();
+      }
+    });
+    iniciar();
+  }
+
+  void atualizar() {
+    if (!mounted) return;
+    setState(() {});
+    // Quando a conexão é perdida, volta a procurar automaticamente.
+    if (!bluetooth.conectado && !conectando && bluetoothLigado) {
+      buscaAutomatica = true;
+      iniciarBusca();
+    }
+  }
+
+  void limparAntigos() {
+    if (!mounted || vistosEm.isEmpty) return;
+    final agora = DateTime.now();
+    final expirados = vistosEm.entries
+        .where((entrada) => agora.difference(entrada.value) > tempoExpiracao)
+        .map((entrada) => entrada.key)
+        .toList();
+    if (expirados.isEmpty) return;
+    setState(() {
+      for (final id in expirados) {
+        vistosEm.remove(id);
+        encontrados.remove(id);
+      }
+    });
   }
 
   @override
   void dispose() {
+    buscaAutomatica = false;
+    limpezaTimer?.cancel();
     scanSubscription?.cancel();
-    connectionSubscription?.cancel();
+    adapterSubscription?.cancel();
+    bluetooth.estadoConexao.removeListener(atualizar);
+    pesquisa.dispose();
+    // Não desconecta o ESP32 ao sair desta tela.
+    // Evita interromper buscas iniciadas por outras telas.
+    if (rotinaAtiva) FlutterBluePlus.stopScan();
     super.dispose();
   }
 
-  // ============================================================
-  // PERMISSÕES
-  // ============================================================
+  String identificador(BluetoothDevice device) => device.remoteId.toString();
 
-  Future<bool> pedirPermissoes() async {
-    final scan =
-        await Permission.bluetoothScan.request();
-
-    final connect =
-        await Permission.bluetoothConnect.request();
-
-    final location =
-        await Permission.locationWhenInUse.request();
-
-    debugPrint("Bluetooth Scan: $scan");
-    debugPrint("Bluetooth Connect: $connect");
-    debugPrint("Localização: $location");
-
-    return scan.isGranted &&
-        connect.isGranted;
+  String nomeOriginal(ScanResult resultado) {
+    final anuncio = resultado.advertisementData.advName.trim();
+    if (anuncio.isNotEmpty) return anuncio;
+    final nome = resultado.device.platformName.trim();
+    return nome.isNotEmpty ? nome : 'Dispositivo sem nome';
   }
 
-  // ============================================================
-  // INICIALIZAR BLUETOOTH
-  // ============================================================
+  String nomeExibido(ScanResult resultado) =>
+      apelidos[identificador(resultado.device)] ?? nomeOriginal(resultado);
 
-  Future<void> iniciarBluetooth() async {
-    final permitido = await pedirPermissoes();
-
-    if (!permitido) {
-      mostrarMensagem(
-        "Permissões do Bluetooth negadas.",
-      );
-      return;
-    }
-
-    final estado =
-        await FlutterBluePlus.adapterState.first;
-
-    debugPrint(
-      "Estado do Bluetooth: $estado",
-    );
-
-    if (estado != BluetoothAdapterState.on) {
-      mostrarMensagem(
-        "Ligue o Bluetooth do celular.",
-      );
-      return;
-    }
-
-    procurarDispositivos();
-  }
-
-  // ============================================================
-  // PROCURAR DISPOSITIVOS
-  // ============================================================
-
-  Future<void> procurarDispositivos() async {
-    if (conectando) return;
-
-    if (mounted) {
-      setState(() {
-        procurando = true;
-        dispositivos.clear();
-      });
-    }
-
-    try {
-      await FlutterBluePlus.stopScan();
-
-      await scanSubscription?.cancel();
-
-      // ========================================================
-      // ESCUTA DOS RESULTADOS
-      // ========================================================
-
-      scanSubscription =
-          FlutterBluePlus.scanResults.listen(
-        (resultados) {
-          if (!mounted) return;
-
-          for (final resultado in resultados) {
-            final nomePlatform =
-                resultado.device.platformName.trim();
-
-            final nomeAnunciado =
-                resultado.advertisementData.advName.trim();
-
-            debugPrint(
-              "BLE ENCONTRADO:"
-              " nome=$nomePlatform"
-              " | advName=$nomeAnunciado"
-              " | id=${resultado.device.remoteId}",
-            );
-          }
-
-          // ====================================================
-          // FILTRA O DEDOLÊ
-          // ====================================================
-
-          final encontrados =
-              resultados.where((resultado) {
-            final nomePlatform =
-                resultado.device.platformName.trim();
-
-            final nomeAnunciado =
-                resultado.advertisementData.advName.trim();
-
-            final encontrouPorNome =
-                nomePlatform == nomeEsp32 ||
-                nomeAnunciado == nomeEsp32;
-
-            // Também verifica o UUID do serviço.
-            final possuiServico =
-                resultado.advertisementData.serviceUuids
-                    .any(
-              (uuid) =>
-                  uuid.toString().toLowerCase() ==
-                  serviceUuid.toLowerCase(),
-            );
-
-            return encontrouPorNome ||
-                possuiServico;
-          }).toList();
-
-          setState(() {
-            dispositivos = encontrados;
-          });
-        },
-        onError: (erro) {
-          debugPrint(
-            "Erro no scan BLE: $erro",
-          );
-        },
-      );
-
-      // ========================================================
-      // INICIAR SCAN
-      // ========================================================
-
-      debugPrint(
-        "================================",
-      );
-      debugPrint(
-        "INICIANDO SCAN BLE",
-      );
-      debugPrint(
-        "Procurando: $nomeEsp32",
-      );
-      debugPrint(
-        "================================",
-      );
-
-      await FlutterBluePlus.startScan(
-        timeout: const Duration(seconds: 10),
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        procurando = false;
-      });
-
-      debugPrint(
-        "SCAN FINALIZADO",
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        procurando = false;
-      });
-
-      debugPrint(
-        "ERRO AO PROCURAR: $e",
-      );
-
-      mostrarMensagem(
-        "Erro ao procurar dispositivos.",
-      );
-    }
-  }
-
-  // ============================================================
-  // CONECTAR AO ESP32
-  // ============================================================
-
-  Future<void> conectar(
-    BluetoothDevice dispositivo,
-  ) async {
-    if (conectando) return;
-
-    setState(() {
-      conectando = true;
-    });
-
-    try {
-      await FlutterBluePlus.stopScan();
-
-      debugPrint(
-        "================================",
-      );
-      debugPrint(
-        "CONECTANDO AO DEDOLÊ",
-      );
-      debugPrint(
-        "Nome: ${dispositivo.platformName}",
-      );
-      debugPrint(
-        "ID: ${dispositivo.remoteId}",
-      );
-      debugPrint(
-        "================================",
-      );
-
-      // ========================================================
-      // CONECTAR
-      // ========================================================
-
-      await dispositivo.connect(
-        timeout: const Duration(seconds: 10),
-      );
-
-      debugPrint(
-        "ESP32 conectado!",
-      );
-
-      // ========================================================
-      // MONITORAR CONEXÃO
-      // ========================================================
-
-      await connectionSubscription?.cancel();
-
-      connectionSubscription =
-          dispositivo.connectionState.listen(
-        (estado) {
-          debugPrint(
-            "Estado da conexão: $estado",
-          );
-
-          if (estado ==
-              BluetoothConnectionState
-                  .disconnected) {
-            if (mounted) {
-              setState(() {
-                dispositivoConectado = null;
-                caracteristicaControle = null;
-              });
-            }
-          }
-        },
-      );
-
-      // ========================================================
-      // DESCOBRIR SERVIÇOS
-      // ========================================================
-
-      final services =
-          await dispositivo.discoverServices();
-
-      debugPrint(
-        "================================",
-      );
-      debugPrint(
-        "SERVIÇOS ENCONTRADOS",
-      );
-      debugPrint(
-        "================================",
-      );
-
-      BluetoothCharacteristic?
-          controleEncontrado;
-
-      for (final service in services) {
-        debugPrint(
-          "Serviço: ${service.uuid}",
+  bool ehDedole(ScanResult resultado) {
+    final nomes = [
+      resultado.device.platformName.toUpperCase(),
+      resultado.advertisementData.advName.toUpperCase(),
+    ];
+    return nomes.any((nome) => nome.startsWith('DEDOLE_')) ||
+        resultado.advertisementData.serviceUuids.any(
+          (uuid) => uuid.toString().toLowerCase() ==
+              dedole.BluetoothService.serviceUuid.toLowerCase(),
         );
+  }
 
-        for (final characteristic
-            in service.characteristics) {
-          debugPrint(
-            "  Characteristic: "
-            "${characteristic.uuid}",
-          );
+  List<ScanResult> get listaFiltrada {
+    final termo = pesquisa.text.trim().toLowerCase();
+    final idConectado = bluetooth.conectado && bluetooth.dispositivo != null
+        ? identificador(bluetooth.dispositivo!)
+        : null;
+    final lista = encontrados.values.where((resultado) {
+      // Um dispositivo conectado nunca aparece novamente na lista de busca.
+      if (identificador(resultado.device) == idConectado) return false;
+      if (somenteDedole && !ehDedole(resultado)) return false;
+      return nomeExibido(resultado).toLowerCase().contains(termo) ||
+          nomeOriginal(resultado).toLowerCase().contains(termo) ||
+          identificador(resultado.device).toLowerCase().contains(termo);
+    }).toList();
+    lista.sort((a, b) => b.rssi.compareTo(a.rssi));
+    return lista;
+  }
 
-          // ==================================================
-          // ENCONTRA A CHARACTERISTIC DOS COMANDOS
-          // ==================================================
-
-          if (characteristic.uuid
-                  .toString()
-                  .toLowerCase() ==
-              controleCharacteristicUuid
-                  .toLowerCase()) {
-            controleEncontrado =
-                characteristic;
-
-            debugPrint(
-              ">>> CHARACTERISTIC DO DEDOLÊ ENCONTRADA!",
-            );
-          }
+  Future<void> iniciar() async {
+    final prefs = await SharedPreferences.getInstance();
+    for (final chave in prefs.getKeys()) {
+      if (chave.startsWith('dedole_nome_')) {
+        final nome = prefs.getString(chave);
+        if (nome != null) {
+          apelidos[chave.substring('dedole_nome_'.length)] = nome;
         }
       }
+    }
+    if (!mounted) return;
+    setState(() {});
+    iniciarBusca();
+  }
 
-      // ========================================================
-      // VERIFICAR SE ENCONTROU
-      // ========================================================
+  Future<bool> pedirPermissoes() async {
+    final scan = await Permission.bluetoothScan.request();
+    final connect = await Permission.bluetoothConnect.request();
+    return scan.isGranted && connect.isGranted;
+  }
 
-      if (controleEncontrado == null) {
-        debugPrint(
-          "ERRO: Characteristic do Dedolê não encontrada.",
-        );
-
-        await dispositivo.disconnect();
-
-        if (!mounted) return;
-
-        setState(() {
-          conectando = false;
-          dispositivoConectado = null;
-        });
-
-        mostrarMensagem(
-          "Serviço de controle do Dedolê não encontrado.",
-        );
-
+  Future<void> ativarBluetooth() async {
+    try {
+      if (!await pedirPermissoes()) {
+        mensagem('Autorize o acesso ao Bluetooth nas configurações.');
         return;
       }
-
-      // ========================================================
-      // SALVAR CHARACTERISTIC
-      // ========================================================
-
-      caracteristicaControle =
-          controleEncontrado;
-
-      // ========================================================
-      // CONFIGURAR BLUETOOTH SERVICE
-      // ========================================================
-
-      await dedole.BluetoothService.instance
-          .configurar(dispositivo);
-
-      debugPrint(
-        ">>> BLUETOOTH SERVICE CONFIGURADO!",
-      );
-
-      // ========================================================
-      // SALVAR DISPOSITIVO
-      // ========================================================
-
-      if (!mounted) return;
-
-      setState(() {
-        dispositivoConectado =
-            dispositivo;
-
-        conectando = false;
-      });
-
-      mostrarMensagem(
-        "ESP32 conectado com sucesso!",
-      );
-    } catch (e) {
-      debugPrint(
-        "================================",
-      );
-      debugPrint(
-        "ERRO AO CONECTAR",
-      );
-      debugPrint(
-        "$e",
-      );
-      debugPrint(
-        "================================",
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        conectando = false;
-        dispositivoConectado = null;
-        caracteristicaControle = null;
-      });
-
-      mostrarMensagem(
-        "Não foi possível conectar ao ESP32.",
-      );
+      await FlutterBluePlus.turnOn();
+      await FlutterBluePlus.adapterState
+          .firstWhere((estado) => estado == BluetoothAdapterState.on)
+          .timeout(const Duration(seconds: 15));
+      if (mounted) {
+        buscaAutomatica = true;
+        iniciarBusca();
+      }
+    } catch (_) {
+      mensagem('Ative o Bluetooth nas configurações do celular.');
     }
   }
 
-  // ============================================================
-  // DESCONECTAR
-  // ============================================================
+  Future<void> suspenderBusca() async {
+    try {
+      await FlutterBluePlus.stopScan();
+    } catch (_) {}
+    if (mounted) setState(() => procurando = false);
+  }
 
-  Future<void> desconectar() async {
-    if (dispositivoConectado == null) {
+  Future<void> pararBusca() async {
+    buscaAutomatica = false;
+    await suspenderBusca();
+  }
+
+  Future<void> iniciarBusca() async {
+    if (rotinaAtiva || conectando || bluetooth.conectado || !buscaAutomatica) {
       return;
     }
-
+    rotinaAtiva = true;
     try {
-      await dispositivoConectado!.disconnect();
+      if (!await pedirPermissoes()) {
+        buscaAutomatica = false;
+        mensagem('Permissões do Bluetooth não concedidas.');
+        return;
+      }
+      final estado = await FlutterBluePlus.adapterState
+          .firstWhere((e) => e != BluetoothAdapterState.unknown)
+          .timeout(const Duration(seconds: 8));
+      if (!mounted || estado != BluetoothAdapterState.on) return;
 
-      await connectionSubscription?.cancel();
-
-      caracteristicaControle = null;
-
-      if (!mounted) return;
-
-      setState(() {
-        dispositivoConectado = null;
+      await scanSubscription?.cancel();
+      // onScanResults entrega resultados novos de cada busca. scanResults pode
+      // devolver resultados antigos em cache e impedir a expiração correta.
+      scanSubscription = FlutterBluePlus.onScanResults.listen((resultados) {
+        if (!mounted || !buscaAutomatica || bluetooth.conectado) return;
+        final agora = DateTime.now();
+        setState(() {
+          for (final resultado in resultados) {
+            final id = identificador(resultado.device);
+            encontrados[id] = resultado;
+            vistosEm[id] = agora;
+          }
+        });
       });
 
-      mostrarMensagem(
-        "ESP32 desconectado.",
-      );
+      while (mounted && bluetoothLigado && buscaAutomatica && !conectando && !bluetooth.conectado) {
+        setState(() => procurando = true);
+        try {
+          await FlutterBluePlus.startScan(
+            timeout: const Duration(seconds: 10),
+          );
+          await FlutterBluePlus.isScanning
+              .where((ativo) => !ativo)
+              .first
+              .timeout(const Duration(seconds: 13));
+        } catch (e) {
+          if (mounted && buscaAutomatica) {
+            mensagem('Falha na busca Bluetooth: $e');
+          }
+          await suspenderBusca();
+        }
+        if (mounted) setState(() => procurando = false);
+        // A expiração continua funcionando durante a pausa entre buscas.
+        for (var i = 0; i < 3; i++) {
+          if (!mounted || !buscaAutomatica || conectando || bluetooth.conectado) {
+            break;
+          }
+          await Future.delayed(const Duration(seconds: 1));
+        }
+      }
     } catch (e) {
-      debugPrint(
-        "Erro ao desconectar: $e",
-      );
+      if (mounted && buscaAutomatica) mensagem('Erro no Bluetooth: $e');
+    } finally {
+      rotinaAtiva = false;
+      if (mounted) setState(() => procurando = false);
     }
   }
 
-  // ============================================================
-  // MENSAGEM
-  // ============================================================
-
-  void mostrarMensagem(
-    String mensagem,
-  ) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(mensagem),
-          behavior:
-              SnackBarBehavior.floating,
-        ),
-      );
+  Future<void> alternarBusca() async {
+    if (buscaAutomatica) {
+      await pararBusca();
+    } else {
+      while (rotinaAtiva && mounted) {
+        await Future.delayed(const Duration(milliseconds: 150));
+      }
+      if (mounted) {
+        buscaAutomatica = true;
+        iniciarBusca();
+      }
+    }
   }
 
-  // ============================================================
-  // BUILD
-  // ============================================================
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          "Conectar ESP32",
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
+  Future<void> salvarApelido(BluetoothDevice device, String nomeAtual) async {
+    final id = identificador(device);
+    final controller = TextEditingController(text: apelidos[id] ?? nomeAtual);
+    final novoNome = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Renomear máquina'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 30,
+          decoration: const InputDecoration(
+            labelText: 'Apelido no aplicativo',
+            border: OutlineInputBorder(),
           ),
         ),
-        centerTitle: true,
         actions: [
-          IconButton(
-            tooltip:
-                "Procurar novamente",
-            onPressed:
-                procurando || conectando
-                    ? null
-                    : procurarDispositivos,
-            icon: const Icon(
-              Icons.refresh,
-            ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('Salvar'),
           ),
         ],
       ),
+    );
+    controller.dispose();
+    if (novoNome == null || novoNome.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('dedole_nome_$id', novoNome);
+    if (!mounted) return;
+    setState(() => apelidos[id] = novoNome);
+    mensagem('Apelido salvo!');
+  }
 
+  Future<void> conectar(BluetoothDevice device) async {
+    if (conectando || bluetooth.conectado) return;
+    setState(() => conectando = true);
+    buscaAutomatica = false;
+    try {
+      await FlutterBluePlus.stopScan();
+      await bluetooth.configurar(device);
+      if (!mounted) return;
+      // Retira o dispositivo conectado da lista e de sua expiração.
+      final id = identificador(device);
+      setState(() {
+        encontrados.remove(id);
+        vistosEm.remove(id);
+      });
+      mensagem('Dedolê conectado com sucesso!');
+    } catch (e) {
+      mensagem('Não foi possível conectar: $e');
+    } finally {
+      if (mounted) {
+        setState(() => conectando = false);
+        if (!bluetooth.conectado && bluetoothLigado) {
+          buscaAutomatica = true;
+          // Aguarda o ciclo anterior encerrar antes de reiniciar.
+          retomarBuscaQuandoPossivel();
+        }
+      }
+    }
+  }
+
+  Future<void> retomarBuscaQuandoPossivel() async {
+    while (mounted && rotinaAtiva) {
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+    if (mounted && buscaAutomatica && !bluetooth.conectado && bluetoothLigado) {
+      iniciarBusca();
+    }
+  }
+
+  Future<void> desconectar() async {
+    try {
+      await bluetooth.desconectar();
+      if (!mounted) return;
+      mensagem('Dedolê desconectado.');
+      buscaAutomatica = true;
+      retomarBuscaQuandoPossivel();
+    } catch (e) {
+      mensagem('Erro ao desconectar: $e');
+    }
+  }
+
+  void mensagem(String texto) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(texto)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final conectado = bluetooth.conectado && bluetooth.dispositivo != null;
+    final lista = listaFiltrada;
+    final dispositivoConectado = conectado ? bluetooth.dispositivo! : null;
+    final nomeConectado = dispositivoConectado == null
+        ? ''
+        : (apelidos[identificador(dispositivoConectado)] ??
+            (dispositivoConectado.platformName.isNotEmpty
+                ? dispositivoConectado.platformName
+                : 'Dedolê'));
+
+    return Scaffold(
+      backgroundColor: fundo,
       body: SafeArea(
         child: Padding(
-          padding:
-              const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildStatusCard(),
-
-              const SizedBox(
-                height: 25,
-              ),
-
-              Align(
-                alignment:
-                    Alignment.centerLeft,
-                child: Text(
-                  "ESP32 disponível",
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(
-                        fontWeight:
-                            FontWeight.bold,
+              Row(
+                children: [
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    tooltip: 'Voltar',
+                    icon: const Icon(Icons.arrow_back_ios_new, color: azul),
+                    onPressed: () => Navigator.maybePop(context),
+                  ),
+                  const Expanded(
+                    child: Text(
+                      'Conectar Bluetooth',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: azul,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 48),
+                ],
+              ),
+              const SizedBox(height: 28),
+              Card(
+                color: branco,
+                child: ListTile(
+                  leading: Icon(
+                    conectado ? Icons.bluetooth_connected : Icons.bluetooth,
+                    color: azul,
+                  ),
+                  title: Text(
+                    conectado
+                        ? 'Máquina conectada'
+                        : bluetoothLigado
+                            ? 'Bluetooth ativado'
+                            : 'Bluetooth desligado',
+                    style: const TextStyle(color: azul, fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(conectado
+                      ? nomeConectado
+                      : 'Selecione uma máquina para conectar',
+                    style: const TextStyle(color: azul)),
+                  trailing: conectado
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Renomear máquina conectada',
+                              icon: const Icon(Icons.edit_outlined, color: azul),
+                              onPressed: () => salvarApelido(
+                                dispositivoConectado!,
+                                nomeConectado,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Desconectar',
+                              icon: const Icon(Icons.link_off, color: Colors.red),
+                              onPressed: desconectar,
+                            ),
+                          ],
+                        )
+                      : !bluetoothLigado
+                          ? TextButton(
+                              onPressed: ativarBluetooth,
+                              child: const Text('Ativar', style: TextStyle(color: azul)),
+                            )
+                          : null,
                 ),
               ),
-
-              const SizedBox(
-                height: 12,
-              ),
-
-              Expanded(
-                child:
-                    _buildConteudo(),
-              ),
-
-              const SizedBox(
-                height: 15,
-              ),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child:
-                    ElevatedButton.icon(
-                  onPressed:
-                      procurando ||
-                              conectando
-                          ? null
-                          : procurarDispositivos,
-                  icon: procurando
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color:
-                                Colors.white,
-                          ),
-                        )
-                      : const Icon(
-                          Icons
-                              .bluetooth_searching,
-                        ),
-                  label: Text(
-                    procurando
-                        ? "Procurando..."
-                        : "Procurar ESP32",
-                    style:
-                        const TextStyle(
-                      fontSize: 16,
-                      fontWeight:
-                          FontWeight.bold,
+              const SizedBox(height: 14),
+              if (conectado) ...[
+                const Expanded(
+                  child: Center(
+                    child: Text(
+                      'Dedolê conectado.\nUse os botões acima para renomear ou desconectar.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: azul, fontSize: 16),
                     ),
                   ),
                 ),
-              ),
+              ] else ...[
+                TextField(
+                  controller: pesquisa,
+                  onChanged: (_) => setState(() {}),
+                  style: const TextStyle(color: azul),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: branco,
+                    prefixIcon: const Icon(Icons.search, color: azul),
+                    hintText: 'Pesquisar pelo nome ou identificador',
+                    hintStyle: const TextStyle(color: azul),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: azul, width: 1.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: const BorderSide(color: azul, width: 1.8),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Somente máquinas Dedolê', style: TextStyle(color: azul, fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Desative para ver outros dispositivos BLE', style: TextStyle(color: azul)),
+                  value: somenteDedole,
+                  activeThumbColor: azul,
+                  onChanged: (valor) => setState(() => somenteDedole = valor),
+                ),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Dispositivos encontrados',
+                        style: TextStyle(color: azul, fontSize: 17, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Text('${lista.length}', style: const TextStyle(color: azul)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: conectando
+                      ? const Center(child: CircularProgressIndicator())
+                      : lista.isEmpty
+                          ? Center(
+                              child: Text(procurando
+                                  ? 'Procurando dispositivos...'
+                                  : 'Nenhum dispositivo encontrado.',
+                                style: const TextStyle(color: azul)),
+                            )
+                          : ListView.builder(
+                              itemCount: lista.length,
+                              itemBuilder: (context, index) {
+                                final resultado = lista[index];
+                                final device = resultado.device;
+                                return Card(
+                                  color: branco,
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  child: ListTile(
+                                    leading: const Icon(Icons.developer_board, color: azul),
+                                    title: Text(
+                                      nomeExibido(resultado),
+                                      style: const TextStyle(color: azul, fontWeight: FontWeight.bold),
+                                    ),
+                                    subtitle: Text(
+                                      '${nomeOriginal(resultado)} · ${resultado.rssi} dBm',
+                                      style: const TextStyle(color: azul),
+                                    ),
+                                    trailing: IconButton(
+                                      tooltip: 'Renomear',
+                                      icon: const Icon(Icons.edit_outlined, color: azul),
+                                      onPressed: () => salvarApelido(
+                                        device,
+                                        nomeOriginal(resultado),
+                                      ),
+                                    ),
+                                    onTap: conectando ? null : () => conectar(device),
+                                  ),
+                                );
+                              },
+                            ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      backgroundColor: branco,
+                      foregroundColor: azul,
+                      side: const BorderSide(color: azul, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    onPressed: conectando
+                        ? null
+                        : !bluetoothLigado
+                            ? ativarBluetooth
+                            : alternarBusca,
+                    icon: Icon(
+                      !bluetoothLigado
+                          ? Icons.bluetooth
+                          : buscaAutomatica
+                              ? Icons.stop_circle_outlined
+                              : Icons.bluetooth_searching,
+                    ),
+                    label: Text(
+                      !bluetoothLigado
+                          ? 'Ativar Bluetooth'
+                          : buscaAutomatica
+                              ? 'Parar busca automática'
+                              : 'Iniciar busca automática',
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
-    );
-  }
-
-  // ============================================================
-  // CARD DE STATUS
-  // ============================================================
-
-  Widget _buildStatusCard() {
-    final conectado =
-        dispositivoConectado != null;
-
-    return Container(
-      width: double.infinity,
-      padding:
-          const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        borderRadius:
-            BorderRadius.circular(18),
-        color: conectado
-            ? Colors.green
-                .withOpacity(0.12)
-            : Colors.blue
-                .withOpacity(0.10),
-        border: Border.all(
-          color: conectado
-              ? Colors.green
-                  .withOpacity(0.35)
-              : Colors.blue
-                  .withOpacity(0.25),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration:
-                BoxDecoration(
-              shape: BoxShape.circle,
-              color: conectado
-                  ? Colors.green
-                      .withOpacity(0.18)
-                  : Colors.blue
-                      .withOpacity(0.15),
-            ),
-            child: Icon(
-              conectado
-                  ? Icons
-                      .bluetooth_connected
-                  : Icons.bluetooth,
-              color: conectado
-                  ? Colors.green
-                  : Colors.blue,
-              size: 28,
-            ),
-          ),
-
-          const SizedBox(
-            width: 15,
-          ),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  conectado
-                      ? "ESP32 conectado"
-                      : "Bluetooth",
-                  style:
-                      const TextStyle(
-                    fontSize: 17,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 4,
-                ),
-
-                Text(
-                  conectado
-                      ? (dispositivoConectado!
-                              .platformName
-                              .isEmpty
-                          ? nomeEsp32
-                          : dispositivoConectado!
-                              .platformName)
-                      : procurando
-                          ? "Procurando o seu ESP32..."
-                          : "Pronto para conectar",
-                  style: TextStyle(
-                    fontSize: 14,
-                    color:
-                        Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          if (conectado)
-            IconButton(
-              tooltip: "Desconectar",
-              onPressed:
-                  desconectar,
-              icon: const Icon(
-                Icons.link_off,
-                color: Colors.red,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // CONTEÚDO
-  // ============================================================
-
-  Widget _buildConteudo() {
-    // ==========================================================
-    // CONECTANDO
-    // ==========================================================
-
-    if (conectando) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 45,
-              height: 45,
-              child:
-                  CircularProgressIndicator(),
-            ),
-
-            SizedBox(
-              height: 20,
-            ),
-
-            Text(
-              "Conectando ao ESP32...",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight:
-                    FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ==========================================================
-    // PROCURANDO
-    // ==========================================================
-
-    if (procurando) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.bluetooth_searching,
-              size: 65,
-              color: Colors.blue,
-            ),
-
-            SizedBox(
-              height: 15,
-            ),
-
-            Text(
-              "Procurando seu ESP32...",
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight:
-                    FontWeight.w500,
-              ),
-            ),
-
-            SizedBox(
-              height: 5,
-            ),
-
-            Text(
-              "Isso pode levar alguns segundos.",
-              style: TextStyle(
-                color: Colors.grey,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ==========================================================
-    // NENHUM DISPOSITIVO
-    // ==========================================================
-
-    if (dispositivos.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.bluetooth_disabled,
-              size: 70,
-              color:
-                  Colors.grey.shade400,
-            ),
-
-            const SizedBox(
-              height: 15,
-            ),
-
-            const Text(
-              "Nenhum ESP32 encontrado",
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight:
-                    FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(
-              height: 7,
-            ),
-
-            Text(
-              "Verifique se o ESP32 está ligado\n"
-              "e com o Bluetooth ativo.",
-              textAlign:
-                  TextAlign.center,
-              style: TextStyle(
-                color:
-                    Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ==========================================================
-    // LISTA
-    // ==========================================================
-
-    return ListView.builder(
-      itemCount:
-          dispositivos.length,
-
-      itemBuilder:
-          (context, index) {
-        final resultado =
-            dispositivos[index];
-
-        final dispositivo =
-            resultado.device;
-
-        final nome =
-            dispositivo
-                    .platformName
-                    .isNotEmpty
-                ? dispositivo
-                    .platformName
-                : resultado
-                    .advertisementData
-                    .advName
-                    .isNotEmpty
-                    ? resultado
-                        .advertisementData
-                        .advName
-                    : "DEDOLE_ESP32";
-
-        return Container(
-          margin:
-              const EdgeInsets.only(
-            bottom: 12,
-          ),
-          decoration:
-              BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(
-              16,
-            ),
-            border: Border.all(
-              color: Colors.grey
-                  .withOpacity(0.2),
-            ),
-          ),
-
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets
-                    .symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-
-            leading: Container(
-              width: 48,
-              height: 48,
-              decoration:
-                  BoxDecoration(
-                color: Colors.blue
-                    .withOpacity(0.12),
-                borderRadius:
-                    BorderRadius.circular(
-                  14,
-                ),
-              ),
-              child: const Icon(
-                Icons.developer_board,
-                color: Colors.blue,
-              ),
-            ),
-
-            title: Text(
-              nome,
-              style:
-                  const TextStyle(
-                fontWeight:
-                    FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-
-            subtitle: Padding(
-              padding:
-                  const EdgeInsets.only(
-                top: 5,
-              ),
-              child: Text(
-                dispositivo
-                    .remoteId
-                    .toString(),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors
-                      .grey.shade600,
-                ),
-              ),
-            ),
-
-            trailing:
-                const Icon(
-              Icons
-                  .arrow_forward_ios,
-              size: 18,
-            ),
-
-            onTap: () {
-              conectar(
-                dispositivo,
-              );
-            },
-          ),
-        );
-      },
     );
   }
 }
