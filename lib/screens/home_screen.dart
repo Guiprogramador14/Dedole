@@ -13,114 +13,135 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            const SizedBox(height: 65),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              const SizedBox(height: 30),
 
-            // LOGO
-            Center(
-              child: SvgPicture.asset(
-                'assets/vetores/logoSomenteTexto.svg',
-                height: 100,
+              // LOGO
+              Center(
+                child: SvgPicture.asset(
+                  'assets/vetores/logoSomenteTexto.svg',
+                  height: 100,
+                ),
               ),
-            ),
 
-            const SizedBox(height: 30),
+              const SizedBox(height: 30),
 
-            buildSquareButton(
-              width: double.infinity,
-              height: 130,
-              icon: SvgPicture.asset(
-                'assets/vetores/imgEnviar.svg',
-                width: 40,
-                height: 40,
+              // ENVIAR
+              buildSquareButton(
+                width: double.infinity,
+                height: 130,
+                icon: SvgPicture.asset(
+                  'assets/vetores/imgEnviar.svg',
+                  width: 40,
+                  height: 40,
+                ),
+                label: 'Enviar',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TelaEnviar(),
+                    ),
+                  );
+                },
               ),
-              label: 'Enviar',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const TelaEnviar()),
-                );
-              },
-            ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // LINHA 1
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                buildSquareButton(
-                  icon: SvgPicture.asset(
-                    'assets/vetores/imgBluetooth.svg',
-                    width: 40,
-                    height: 40,
-                  ),
-                  label: 'Bluetooth',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TelaBluetooth(),
+              // LINHA 1
+              Row(
+                children: [
+                  Expanded(
+                    child: buildSquareButton(
+                      icon: SvgPicture.asset(
+                        'assets/vetores/imgBluetooth.svg',
+                        width: 40,
+                        height: 40,
                       ),
-                    );
-                  },
-                ),
-                buildSquareButton(
-                  icon: SvgPicture.asset(
-                    'assets/vetores/imgBancoDePalavras.svg',
-                    width: 40,
-                    height: 40,
+                      label: 'Bluetooth',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const TelaBluetooth(),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                  label: 'Banco de palavras',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TelaBancoDePalavras(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
 
-            const SizedBox(height: 20),
+                  const SizedBox(width: 16),
 
-            // LINHA 2
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                buildSquareButton(
-                  icon: SvgPicture.asset(
-                    'assets/vetores/imgConfigurações.svg',
-                    width: 40,
-                    height: 40,
-                  ),
-                  label: 'Configurações',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const TelaConfiguracoes(),
+                  Expanded(
+                    child: buildSquareButton(
+                      icon: SvgPicture.asset(
+                        'assets/vetores/imgBancoDePalavras.svg',
+                        width: 40,
+                        height: 40,
                       ),
-                    );
-                  },
-                ),
-                buildSquareButton(
-                  icon: SvgPicture.asset(
-                    'assets/vetores/imgSair.svg',
-                    width: 40,
-                    height: 40,
+                      label: 'Banco de palavras',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const TelaBancoDePalavras(),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                  label: 'Sair',
-                  onTap: sairDoApp,
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // LINHA 2
+              Row(
+                children: [
+                  Expanded(
+                    child: buildSquareButton(
+                      icon: SvgPicture.asset(
+                        'assets/vetores/imgConfigurações.svg',
+                        width: 40,
+                        height: 40,
+                      ),
+                      label: 'Configurações',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const TelaConfiguracoes(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(width: 16),
+
+                  Expanded(
+                    child: buildSquareButton(
+                      icon: SvgPicture.asset(
+                        'assets/vetores/imgSair.svg',
+                        width: 40,
+                        height: 40,
+                      ),
+                      label: 'Sair',
+                      onTap: sairDoApp,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
