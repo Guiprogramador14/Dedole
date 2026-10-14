@@ -41,10 +41,6 @@ Future<void> _salvarPalavra() async {
   );
 }
 
-  void _abrirBluetooth() {
-    // TODO: Tela de Bluetooth
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -89,15 +85,6 @@ Future<void> _salvarPalavra() async {
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
-          ),
-        ),
-        IconButton(
-          padding: EdgeInsets.zero,
-          onPressed: _abrirBluetooth,
-          icon: SvgPicture.asset(
-            'assets/vetores/imgBluetooth.svg',
-            width: 28,
-            height: 28,
           ),
         ),
       ],
