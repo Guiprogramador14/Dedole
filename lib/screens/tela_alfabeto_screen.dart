@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart' hide BluetoothService;
 import '../utils/bluetooth_service.dart';
 
 class TelaAlfabeto extends StatefulWidget {
@@ -9,227 +12,237 @@ class TelaAlfabeto extends StatefulWidget {
 }
 
 class _TelaAlfabetoState extends State<TelaAlfabeto> {
+  static const Color cor = Color(0xFF1B2161);
+  static const Color fundo = Color(0xFFF6F7FF);
+  static const String respostaUuid = 'beb5483e-36e1-4688-b7f5-ea07361b26aa';
+  static const String letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
   bool enviando = false;
   String? letraAtiva;
+  String status = 'Selecione uma letra para representar em Braille.';
+  BluetoothCharacteristic? resposta;
+  StreamSubscription<List<int>>? assinatura;
+  StreamSubscription<BluetoothConnectionState>? conexao;
 
-  Future<void> enviarLetra(String letra) async {
-    if (enviando) return;
+  @override
+  void initState() {
+    super.initState();
+    iniciarNotificacoes();
+  }
 
-    setState(() {
-      enviando = true;
-    });
+  void falar(String mensagem) {
+    if (!mounted) return;
+    SemanticsService.sendAnnouncement(
+      View.of(context),
+      mensagem,
+      TextDirection.ltr,
+    );
+  }
 
-    try {
-      await BluetoothService.instance.enviarComando(letra);
-
-      if (!mounted) return;
-
-      setState(() {
-        letraAtiva = letra;
-        enviando = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            "Letra $letra enviada para o Dedolê.",
-          ),
+  void informar(String mensagem, {bool mostrarAviso = false}) {
+    if (!mounted) return;
+    setState(() => status = mensagem);
+    falar(mensagem);
+    if (mostrarAviso) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(mensagem),
           behavior: SnackBarBehavior.floating,
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        enviando = false;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Erro ao enviar a letra $letra: $e"),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+          duration: const Duration(seconds: 3),
+        ));
     }
   }
 
+  Future<void> iniciarNotificacoes() async {
+    final device = BluetoothService.instance.dispositivo;
+    if (device == null || !BluetoothService.instance.conectado) return;
+
+    try {
+      conexao = device.connectionState.listen((estado) {
+        if (!mounted) return;
+        if (estado == BluetoothConnectionState.disconnected) {
+          setState(() => letraAtiva = null);
+          informar('Dedolê desconectado. Conecte a máquina para continuar.',
+              mostrarAviso: true);
+        }
+      });
+
+      final servicos = await device.discoverServices();
+      for (final servico in servicos) {
+        if (servico.uuid.toString().toLowerCase() !=
+            BluetoothService.serviceUuid.toLowerCase()) {
+          continue;
+        }
+        for (final caracteristica in servico.characteristics) {
+          if (caracteristica.uuid.toString().toLowerCase() != respostaUuid) {
+            continue;
+          }
+
+          resposta = caracteristica;
+          assinatura = caracteristica.onValueReceived.listen((bytes) {
+            final mensagem = String.fromCharCodes(bytes).trim().toUpperCase();
+            if (!mounted) return;
+
+            if (mensagem.startsWith('ACERTOU:')) {
+              final letra = mensagem.substring('ACERTOU:'.length).trim();
+              if (letra == letraAtiva) {
+                setState(() => letraAtiva = null);
+                informar('Correto! Letra $letra representada corretamente. '
+                    'Todos os pontos voltaram à posição inicial.',
+                    mostrarAviso: true);
+              }
+            }
+          });
+          await caracteristica.setNotifyValue(true);
+          return;
+        }
+      }
+      informar('Não foi possível encontrar as respostas da máquina.',
+          mostrarAviso: true);
+    } catch (e) {
+      informar('Não foi possível ativar as respostas da máquina.',
+          mostrarAviso: true);
+    }
+  }
+
+  Future<void> selecionar(String letra) async {
+    if (enviando) return;
+    if (!BluetoothService.instance.conectado) {
+      informar('Dedolê não conectado. Conecte a máquina pelo Bluetooth primeiro.',
+          mostrarAviso: true);
+      return;
+    }
+
+    final cancelando = letraAtiva == letra;
+    setState(() => enviando = true);
+    try {
+      if (cancelando) {
+        await BluetoothService.instance.enviarComando('RESET');
+        if (!mounted) return;
+        setState(() => letraAtiva = null);
+        informar('Letra $letra cancelada. Pontos enviados para a posição inicial.');
+      } else {
+        await BluetoothService.instance.enviarComando(letra);
+        if (!mounted) return;
+        setState(() => letraAtiva = letra);
+        informar('Letra $letra enviada ao Dedolê. '
+            'Toque nos botões físicos correspondentes aos pontos Braille.');
+      }
+    } catch (e) {
+      informar('Falha na comunicação com o Dedolê. Tente novamente.',
+          mostrarAviso: true);
+    } finally {
+      if (mounted) setState(() => enviando = false);
+    }
+  }
+
+  Future<void> voltar() async {
+    if (enviando) return;
+    if (letraAtiva != null && BluetoothService.instance.conectado) {
+      try {
+        await BluetoothService.instance.enviarComando('RESET');
+      } catch (_) {
+        if (mounted) {
+          informar('Não foi possível reiniciar os pontos da máquina.',
+              mostrarAviso: true);
+        }
+        return;
+      }
+    }
+    if (mounted) Navigator.maybePop(context);
+  }
+
+  @override
+  void dispose() {
+    assinatura?.cancel();
+    conexao?.cancel();
+    super.dispose();
+  }
+
   Widget criarLetra(String letra) {
-    return Column(
-      children: [
-        ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14),
+    final ativa = letraAtiva == letra;
+    final acao = ativa ? 'Parar' : 'Representar';
 
-          title: Text(
-            "LETRA $letra",
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-
-          subtitle: letraAtiva == letra
-              ? Text(
-                  "Letra $letra apresentada no Dedolê",
-                  style: const TextStyle(
-                    color: Colors.green,
-                  ),
-                )
+    return Column(children: [
+      Semantics(
+        container: true,
+        explicitChildNodes: true,
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          title: Text('LETRA $letra',
+              style: const TextStyle(
+                  color: cor, fontSize: 21, fontWeight: FontWeight.w600)),
+          subtitle: ativa
+              ? const Text('Aguardando resposta nos botões físicos',
+                  style: TextStyle(color: cor, fontSize: 12))
               : null,
-
-          trailing: InkWell(
-            borderRadius: BorderRadius.circular(30),
-
-            onTap: enviando
-                ? null
-                : () => enviarLetra(letra),
-
-            child: Container(
-              width: 48,
-              height: 48,
-
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-
-                border: Border.all(
-                  color: letraAtiva == letra
-                      ? Colors.green
-                      : Colors.black,
-
-                  width: 1.5,
-                ),
-              ),
-
-              child: Icon(
-                letraAtiva == letra
-                    ? Icons.check
-                    : Icons.play_arrow,
-
-                size: 26,
-
-                color: letraAtiva == letra
-                    ? Colors.green
-                    : Colors.black,
-              ),
-            ),
+          trailing: IconButton(
+            tooltip: '$acao letra $letra',
+            onPressed: enviando ? null : () => selecionar(letra),
+            iconSize: 40,
+            color: cor,
+            icon: Icon(ativa
+                ? Icons.stop_circle_outlined
+                : Icons.play_circle_outline),
           ),
         ),
-
-        const Divider(
-          height: 1,
-          color: Color(0xFFE5E5E5),
-        ),
-      ],
-    );
+      ),
+      const Divider(height: 1, color: Color(0xFFD8DCEF)),
+    ]);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(70),
-
-        child: SafeArea(
-          child: Container(
-            decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.black,
-                  width: 2,
+      backgroundColor: fundo,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(children: [
+            Row(children: [
+              IconButton(
+                padding: EdgeInsets.zero,
+                tooltip: 'Voltar',
+                icon: const Icon(Icons.arrow_back_ios_new, color: cor),
+                onPressed: enviando ? null : voltar,
+              ),
+              const Expanded(
+                child: Text('Alfabeto',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: cor, fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(width: 48),
+            ]),
+            const SizedBox(height: 24),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Selecione uma letra para representar em Braille',
+                  style: TextStyle(color: cor, fontSize: 14)),
+            ),
+            const SizedBox(height: 12),
+            Semantics(
+              liveRegion: true,
+              label: 'Estado da atividade: $status',
+              child: ExcludeSemantics(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(status,
+                      style: const TextStyle(
+                          color: cor, fontSize: 13, fontWeight: FontWeight.w500)),
                 ),
               ),
             ),
-
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-
-                    icon: const Icon(
-                      Icons.arrow_back_ios,
-                      color: Color(0xFF0A2C73),
-                      size: 34,
-                    ),
-                  ),
-
-                  const SizedBox(width: 5),
-
-                  const Expanded(
-                    child: Text(
-                      "Alfabeto",
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ),
-
-                  const Icon(
-                    Icons.bluetooth_connected,
-                    color: Color(0xFF0A2C73),
-                    size: 30,
-                  ),
-                ],
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                itemCount: letras.length,
+                itemBuilder: (_, i) => criarLetra(letras[i]),
               ),
             ),
-          ),
+          ]),
         ),
-      ),
-
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(14, 18, 14, 10),
-
-            child: Text(
-              "Selecione uma letra para transcrever",
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.black54,
-              ),
-            ),
-          ),
-
-          Expanded(
-            child: ListView(
-              children: [
-                criarLetra("A"),
-                criarLetra("B"),
-                criarLetra("C"),
-                criarLetra("D"),
-                criarLetra("E"),
-                criarLetra("F"),
-                criarLetra("G"),
-                criarLetra("H"),
-                criarLetra("I"),
-                criarLetra("J"),
-                criarLetra("K"),
-                criarLetra("L"),
-                criarLetra("M"),
-                criarLetra("N"),
-                criarLetra("O"),
-                criarLetra("P"),
-                criarLetra("Q"),
-                criarLetra("R"),
-                criarLetra("S"),
-                criarLetra("T"),
-                criarLetra("U"),
-                criarLetra("V"),
-                criarLetra("W"),
-                criarLetra("X"),
-                criarLetra("Y"),
-                criarLetra("Z"),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
