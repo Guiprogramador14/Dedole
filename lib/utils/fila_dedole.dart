@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart' hide BluetoothService;
 import 'bluetooth_service.dart';
+import '../database/banco_dedole.dart';
 
 /// Controlador compartilhado de palavras, letras, cores e algarismos.
 class FilaDedole extends ChangeNotifier {
@@ -14,6 +15,38 @@ class FilaDedole extends ChangeNotifier {
   List<String> get itens => List.unmodifiable(_itens);
 
   String? ultimaPalavra;
+  String? pendenteRetomada;
+  bool _carregado = false;
+  Future<void> _gravacoes = Future<void>.value();
+
+  Future<void> inicializar() async {
+    if (_carregado) return;
+    final estado = await BancoDedole.carregarFila();
+    _itens
+      ..clear()
+      ..addAll(estado.itens.where((item) => _validarItem(item) != null));
+    ultimaPalavra = estado.ultima;
+    pendenteRetomada = estado.atual;
+    if (pendenteRetomada != null) {
+      mensagem = 'Reprodução interrompida em $pendenteRetomada. Toque em retomar para começar do início.';
+    }
+    _carregado = true;
+    notifyListeners();
+  }
+
+  void _salvar() {
+    if (!_carregado) return;
+    final itens = List<String>.of(_itens);
+    final atual = pendenteRetomada;
+    final ultima = ultimaPalavra;
+    _gravacoes = _gravacoes.then((_) => BancoDedole.salvarFila(itens, atual, ultima))
+        .catchError((Object erro) {
+      debugPrint('Falha ao salvar fila do Dedolê: $erro');
+      mensagem = 'Erro ao salvar a fila: $erro';
+      notifyListeners();
+    });
+  }
+
   String? palavraEmExecucao;
   int indiceLetra = 0;
   String mensagem = 'Adicione palavras à fila ou escolha uma palavra.';
@@ -53,6 +86,7 @@ class FilaDedole extends ChangeNotifier {
     final item = _validarItem(texto);
     if (item == null) return false;
     _itens.add(item);
+    _salvar();
     mensagem = '$item adicionado ao final da fila.';
     notifyListeners();
     return true;
@@ -61,12 +95,14 @@ class FilaDedole extends ChangeNotifier {
   void remover(int index) {
     if (reproduzindo || ocupado || index < 0 || index >= _itens.length) return;
     _itens.removeAt(index);
+    _salvar();
     notifyListeners();
   }
 
   void limpar() {
     if (reproduzindo || ocupado) return;
     _itens.clear();
+    _salvar();
     mensagem = 'Fila limpa.';
     notifyListeners();
   }
@@ -77,6 +113,7 @@ class FilaDedole extends ChangeNotifier {
     if (novo < 0 || novo >= _itens.length) return;
     final item = _itens.removeAt(anterior);
     _itens.insert(novo, item);
+    _salvar();
     notifyListeners();
   }
 
@@ -101,6 +138,7 @@ class FilaDedole extends ChangeNotifier {
         if (estado == BluetoothConnectionState.disconnected) {
           _geracao++;
           palavraEmExecucao = null;
+          _salvar();
           indiceLetra = 0;
           ocupado = false;
           _processando = false;
@@ -155,6 +193,8 @@ class FilaDedole extends ChangeNotifier {
       return;
     }
     final versao = ++_geracao;
+    pendenteRetomada = item;
+    _salvar();
     palavraEmExecucao = null;
     indiceLetra = 0;
     _aguardandoSinalNumero = false;
@@ -180,12 +220,14 @@ class FilaDedole extends ChangeNotifier {
       if (versao != _geracao) return;
       palavraEmExecucao = item;
       ultimaPalavra = item;
+      pendenteRetomada = item;
       indiceLetra = 0;
       _aguardandoSinalNumero = ehNumero;
       if (retirarDaFila) {
         final indice = _itens.indexOf(item);
         if (indice >= 0) _itens.removeAt(indice);
       }
+      _salvar();
       mensagem = ehNumero
           ? 'Número $item. Sinal numérico: pressione os pontos 3, 4, 5 e 6.'
           : 'Reproduzindo $item. Letra ${item[0]}.';
@@ -205,11 +247,14 @@ class FilaDedole extends ChangeNotifier {
   }
 
   Future<void> retomarUltima() async {
-    if (ultimaPalavra != null) await play(ultimaPalavra!);
+    final item = pendenteRetomada ?? ultimaPalavra;
+    if (item != null) await play(item);
   }
 
   Future<void> parar() async {
     final versao = ++_geracao;
+    pendenteRetomada = null;
+    _salvar();
     palavraEmExecucao = null;
     indiceLetra = 0;
     _aguardandoSinalNumero = false;
@@ -255,6 +300,8 @@ class FilaDedole extends ChangeNotifier {
         if (numeroEmExecucao || proximo >= item.length) {
           if (versao != _geracao) return;
           palavraEmExecucao = null;
+          pendenteRetomada = null;
+          _salvar();
           indiceLetra = 0;
           _aguardandoSinalNumero = false;
           mensagem = RegExp(r'^[0-9]$').hasMatch(item)
