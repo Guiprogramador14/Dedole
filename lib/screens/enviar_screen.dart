@@ -1,281 +1,140 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
+import '../utils/fila_dedole.dart';
 
 class TelaEnviar extends StatefulWidget {
   const TelaEnviar({super.key});
-
   @override
   State<TelaEnviar> createState() => _TelaEnviarState();
 }
 
 class _TelaEnviarState extends State<TelaEnviar> {
-  final List<String> filaPalavras = [
-    "Morango",
-    "A casa 213 é bonita",
-    "12",
-  ];
+  static const cor = Color(0xFF1B2161);
+  static const fundo = Color(0xFFF6F7FF);
+  final fila = FilaDedole.instance;
+  String? anterior;
 
-  String ultimaPalavra = "Cores";
-
-  String get palavraAtual =>
-      filaPalavras.isNotEmpty ? filaPalavras.first : "Nenhuma";
-
-  void removerPalavra(int index) {
-    setState(() {
-      filaPalavras.removeAt(index);
-    });
+  @override
+  void initState() {
+    super.initState();
+    anterior = fila.mensagem;
+    fila.addListener(atualizar);
+    fila.preparar();
   }
 
-  void enviarPalavra() {
-    if (filaPalavras.isEmpty) return;
+  void atualizar() {
+    if (!mounted) return;
+    setState(() {});
+    if (anterior != fila.mensagem) {
+      anterior = fila.mensagem;
+      SemanticsService.sendAnnouncement(View.of(context), fila.mensagem, TextDirection.ltr);
+    }
+  }
 
-    setState(() {
-      ultimaPalavra = filaPalavras.first;
-      filaPalavras.removeAt(0);
-    });
+  Future<void> confirmarLimpeza() async {
+    if (fila.reproduzindo || fila.ocupado || fila.itens.isEmpty) return;
+    final sim = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Limpar fila?'),
+      content: const Text('As palavras pendentes serão removidas. As palavras salvas não serão apagadas.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Limpar')),
+      ],
+    ));
+    if (sim == true) fila.limpar();
+  }
 
-    // TODO:
-    // Aqui você irá enviar a palavra para o ESP32 via Bluetooth.
+  @override
+  void dispose() {
+    fila.removeListener(atualizar);
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final atual = fila.palavraEmExecucao ?? (fila.itens.isEmpty ? null : fila.itens.first);
+    final bloqueioEdicao = fila.reproduzindo || fila.ocupado;
     return Scaffold(
-      backgroundColor: const Color(0xffF5F5F5),
-
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(72),
-        child: SafeArea(
-          child: Container(
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              border: Border(
-                bottom: BorderSide(
-                  color: Colors.black,
-                  width: 2,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios,
-                    color: Color(0xff0A2C73),
-                    size: 34,
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                ),
-
-                const SizedBox(width: 5),
-
-                const Expanded(
-                  child: Text(
-                    "Enviar",
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-
-                IconButton(
-                  icon: const Icon(
-                    Icons.bluetooth,
-                    color: Color(0xff0A2C73),
-                    size: 30,
-                  ),
-                  onPressed: () {
-                    // abrir tela bluetooth
-                  },
-                ),
-
-                const SizedBox(width: 10),
-              ],
-            ),
+      backgroundColor: fundo,
+      body: SafeArea(child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Column(children: [
+          Row(children: [
+            IconButton(tooltip: 'Voltar', onPressed: () => Navigator.maybePop(context),
+              icon: const Icon(Icons.arrow_back_ios_new, color: cor)),
+            const Expanded(child: Text('Enviar', textAlign: TextAlign.center,
+              style: TextStyle(color: cor, fontSize: 18, fontWeight: FontWeight.bold))),
+            const SizedBox(width: 48),
+          ]),
+          const SizedBox(height: 20),
+          Semantics(liveRegion: true, child: Container(
+            width: double.infinity, padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFD8DCEF))),
+            child: Text(fila.mensagem, style: const TextStyle(color: cor, fontSize: 14)),
+          )),
+          const SizedBox(height: 16),
+          Container(width: double.infinity, padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFD8DCEF))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Palavra atual', style: TextStyle(color: cor)),
+              const SizedBox(height: 8),
+              Text(atual ?? 'Nenhuma', style: const TextStyle(color: cor, fontSize: 28, fontWeight: FontWeight.bold)),
+              if (fila.reproduzindo) Text('Letra ${fila.letraAtual} (${fila.indiceLetra + 1} de ${fila.palavraEmExecucao!.length})',
+                style: const TextStyle(color: cor)),
+              const SizedBox(height: 12),
+              Wrap(spacing: 10, children: [
+                OutlinedButton.icon(onPressed: fila.reproduzindo ? fila.parar : null,
+                  icon: const Icon(Icons.stop_circle_outlined), label: const Text('Parar')),
+                FilledButton.icon(onPressed: fila.itens.isNotEmpty ? fila.tocarPrimeiro : null,
+                  icon: const Icon(Icons.play_arrow), label: const Text('Play da fila')),
+              ]),
+            ]),
           ),
-        ),
-      ),
-
-      body: Column(
-        children: [
-          Container(
-            margin: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border.all(color: Colors.black12),
-            ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          "Palavra atual:",
-                          style: TextStyle(fontSize: 16),
-                        ),
-                      ),
-
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          const Text(
-                            "Última palavra:",
-                            style: TextStyle(fontSize: 12),
-                          ),
-                          Text(
-                            ultimaPalavra,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                Container(
-                  width: double.infinity,
-                  color: const Color(0xff3E4F9D),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 18,
-                  ),
-                  child: Text(
-                    palavraAtual,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 42,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ),
-
-                Padding(
-                  padding: const EdgeInsets.only(
-                    right: 14,
-                    top: 10,
-                    bottom: 10,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          shape: const StadiumBorder(),
-                        ),
-                        onPressed: () {
-                          // reproduzir palavra
-                        },
-                        icon: const Icon(Icons.play_arrow),
-                        label: const Text("Play"),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xff0A2C73),
-                          foregroundColor: Colors.white,
-                          shape: const StadiumBorder(),
-                        ),
-                        onPressed: enviarPalavra,
-                        icon: const Icon(Icons.send),
-                        label: const Text("Enviar"),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 18),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                "Fila de palavras:",
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          Expanded(
-            child: ReorderableListView.builder(
-              itemCount: filaPalavras.length,
-
-              onReorder: (oldIndex, newIndex) {
-                setState(() {
-                  if (newIndex > oldIndex) {
-                    newIndex--;
-                  }
-
-                  final item = filaPalavras.removeAt(oldIndex);
-                  filaPalavras.insert(newIndex, item);
-                });
-              },
-
-              itemBuilder: (context, index) {
-                return ListTile(
-                  key: ValueKey(filaPalavras[index]),
-
-                  title: Text(
-                    filaPalavras[index],
-                    style: const TextStyle(
-                      fontSize: 22,
-                    ),
-                  ),
-
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          size: 28,
-                        ),
-                        onPressed: () {
-                          removerPalavra(index);
-                        },
-                      ),
-
-                      IconButton(
-                        icon: const Icon(
-                          Icons.play_circle_outline,
-                          size: 30,
-                        ),
-                        onPressed: () {
-                          // reproduzir somente esta palavra
-                        },
-                      ),
-
-                      const Icon(
-                        Icons.drag_handle,
-                        color: Color(0xff0A2C73),
-                        size: 30,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+          const SizedBox(height: 12),
+          Row(children: [
+            const Expanded(child: Text('Última palavra', style: TextStyle(color: cor, fontWeight: FontWeight.w600))),
+            Flexible(child: Text(fila.ultimaPalavra ?? 'Nenhuma', overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: cor))),
+            IconButton(tooltip: 'Retomar última palavra', onPressed: fila.ultimaPalavra == null ? null : fila.retomarUltima,
+              icon: const Icon(Icons.replay, color: cor)),
+          ]),
+          const Divider(color: Color(0xFFD8DCEF)),
+          Row(children: [
+            const Expanded(child: Text('Fila de palavras', style: TextStyle(color: cor, fontSize: 18, fontWeight: FontWeight.bold))),
+            Text('${fila.itens.length}', style: const TextStyle(color: cor)),
+            TextButton.icon(onPressed: !bloqueioEdicao && fila.itens.isNotEmpty ? confirmarLimpeza : null,
+              icon: const Icon(Icons.delete_sweep_outlined), label: const Text('Limpar')),
+          ]),
+          Expanded(child: fila.itens.isEmpty
+            ? const Center(child: Text('Fila vazia. Adicione palavras em Suas Palavras.',
+                textAlign: TextAlign.center, style: TextStyle(color: cor)))
+            : ReorderableListView.builder(
+                buildDefaultDragHandles: false,
+                itemCount: fila.itens.length,
+                onReorder: bloqueioEdicao ? (_, __) {} : fila.reordenar,
+                itemBuilder: (context, i) {
+                  final palavra = fila.itens[i];
+                  return Container(key: ValueKey('$i-$palavra'),
+                    decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFFD8DCEF)))),
+                    child: ListTile(title: Text(palavra, style: const TextStyle(color: cor, fontSize: 19)),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(tooltip: 'Play $palavra, prioridade máxima',
+                          onPressed: () => fila.play(palavra, retirarDaFila: true),
+                          icon: const Icon(Icons.play_circle_outline, color: cor)),
+                        IconButton(tooltip: 'Remover $palavra', onPressed: bloqueioEdicao ? null : () => fila.remover(i),
+                          icon: const Icon(Icons.delete_outline, color: cor)),
+                        ReorderableDragStartListener(index: i, enabled: !bloqueioEdicao,
+                          child: const Padding(padding: EdgeInsets.all(8),
+                            child: Icon(Icons.drag_handle, color: cor))),
+                      ])),
+                  );
+                },
+              )),
+        ]),
+      )),
     );
   }
 }
