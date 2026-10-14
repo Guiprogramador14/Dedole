@@ -5,21 +5,12 @@ class BancoDedole {
   static Database? _database;
 
   static Future<Database> get database async {
-    if (_database != null) {
-      return _database!;
-    }
-
-    _database = await _initDatabase();
-    return _database!;
+    return _database ??= await _initDatabase();
   }
 
   static Future<Database> _initDatabase() async {
-    final caminho = join(
-      await getDatabasesPath(),
-      'dedole.db',
-    );
-
-    return await openDatabase(
+    final caminho = join(await getDatabasesPath(), 'dedole.db');
+    return openDatabase(
       caminho,
       version: 1,
       onCreate: (db, version) async {
@@ -35,31 +26,22 @@ class BancoDedole {
 
   static Future<void> adicionarPalavra(String palavra) async {
     final db = await database;
-
-    await db.insert(
-      'palavras',
-      {
-        'palavra': palavra,
-      },
-    );
+    await db.insert('palavras', {'palavra': palavra});
   }
 
   static Future<List<Map<String, dynamic>>> buscarPalavras() async {
     final db = await database;
+    return db.query('palavras', orderBy: 'id DESC');
+  }
 
-    return await db.query(
-      'palavras',
-      orderBy: 'id DESC',
-    );
+  static Future<void> editarPalavra(int id, String palavra) async {
+    final db = await database;
+    await db.update('palavras', {'palavra': palavra},
+        where: 'id = ?', whereArgs: [id]);
   }
 
   static Future<void> excluirPalavra(int id) async {
     final db = await database;
-
-    await db.delete(
-      'palavras',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await db.delete('palavras', where: 'id = ?', whereArgs: [id]);
   }
 }
