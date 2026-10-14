@@ -5,7 +5,7 @@ import 'tela_banco_de_palavras.dart';
 import 'bluetooth_screen.dart';
 import 'enviar_screen.dart';
 import '../widgets/SquareButton.dart';
-import 'configurações_screen.dart';
+import 'tela_configuracoes_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
