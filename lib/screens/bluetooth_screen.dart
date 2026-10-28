@@ -15,9 +15,6 @@ class TelaBluetooth extends StatefulWidget {
 }
 
 class _TelaBluetoothState extends State<TelaBluetooth> {
-  static const Color azul = Color(0xFF1B2161);
-  static const Color fundo = Color(0xFFF6F7FF);
-  static const Color branco = Color(0xFFFCFCFF);
   static const Duration tempoExpiracao = Duration(seconds: 20);
 
   final dedole.BluetoothService bluetooth = dedole.BluetoothService.instance;
@@ -228,7 +225,8 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
         });
       });
 
-      while (mounted && bluetoothLigado && buscaAutomatica && !conectando && !bluetooth.conectado) {
+      while (mounted && bluetoothLigado && buscaAutomatica &&
+          !conectando && !bluetooth.conectado) {
         setState(() => procurando = true);
         try {
           await FlutterBluePlus.startScan(
@@ -371,6 +369,13 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
 
   @override
   Widget build(BuildContext context) {
+    // Cores derivadas do tema global; acompanham claro, escuro e alto contraste.
+    final tema = Theme.of(context);
+    final azul = tema.colorScheme.primary;
+    final fundo = tema.scaffoldBackgroundColor;
+    final branco = tema.colorScheme.surface;
+    final texto = tema.colorScheme.onSurface;
+
     final conectado = bluetooth.conectado && bluetooth.dispositivo != null;
     final lista = listaFiltrada;
     final dispositivoConectado = conectado ? bluetooth.dispositivo! : null;
@@ -394,15 +399,15 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
                   IconButton(
                     padding: EdgeInsets.zero,
                     tooltip: 'Voltar',
-                    icon: const Icon(Icons.arrow_back_ios_new, color: azul),
+                    icon: Icon(Icons.arrow_back_ios_new, color: azul),
                     onPressed: () => Navigator.maybePop(context),
                   ),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Conectar Bluetooth',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: azul,
+                        color: texto,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
@@ -425,19 +430,19 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
                         : bluetoothLigado
                             ? 'Bluetooth ativado'
                             : 'Bluetooth desligado',
-                    style: const TextStyle(color: azul, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: texto, fontWeight: FontWeight.bold),
                   ),
-                  subtitle: Text(conectado
-                      ? nomeConectado
-                      : 'Selecione uma máquina para conectar',
-                    style: const TextStyle(color: azul)),
+                  subtitle: Text(
+                    conectado ? nomeConectado : 'Selecione uma máquina para conectar',
+                    style: TextStyle(color: texto),
+                  ),
                   trailing: conectado
                       ? Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               tooltip: 'Renomear máquina conectada',
-                              icon: const Icon(Icons.edit_outlined, color: azul),
+                              icon: Icon(Icons.edit_outlined, color: azul),
                               onPressed: () => salvarApelido(
                                 dispositivoConectado!,
                                 nomeConectado,
@@ -453,19 +458,19 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
                       : !bluetoothLigado
                           ? TextButton(
                               onPressed: ativarBluetooth,
-                              child: const Text('Ativar', style: TextStyle(color: azul)),
+                              child: Text('Ativar', style: TextStyle(color: azul)),
                             )
                           : null,
                 ),
               ),
               const SizedBox(height: 14),
               if (conectado) ...[
-                const Expanded(
+                Expanded(
                   child: Center(
                     child: Text(
                       'Dedolê conectado.\nUse os botões acima para renomear ou desconectar.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: azul, fontSize: 16),
+                      style: TextStyle(color: texto, fontSize: 16),
                     ),
                   ),
                 ),
@@ -473,40 +478,50 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
                 TextField(
                   controller: pesquisa,
                   onChanged: (_) => setState(() {}),
-                  style: const TextStyle(color: azul),
+                  style: TextStyle(color: texto),
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: branco,
-                    prefixIcon: const Icon(Icons.search, color: azul),
+                    prefixIcon: Icon(Icons.search, color: azul),
                     hintText: 'Pesquisar pelo nome ou identificador',
-                    hintStyle: const TextStyle(color: azul),
+                    hintStyle: TextStyle(color: texto.withValues(alpha: 0.75)),
                     enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: azul, width: 1.2),
+                      borderSide: BorderSide(color: azul, width: 1.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: azul, width: 1.8),
+                      borderSide: BorderSide(color: azul, width: 1.8),
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Somente máquinas Dedolê', style: TextStyle(color: azul, fontWeight: FontWeight.bold)),
-                  subtitle: const Text('Desative para ver outros dispositivos BLE', style: TextStyle(color: azul)),
+                  title: Text(
+                    'Somente máquinas Dedolê',
+                    style: TextStyle(color: texto, fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    'Desative para ver outros dispositivos BLE',
+                    style: TextStyle(color: texto),
+                  ),
                   value: somenteDedole,
                   activeThumbColor: azul,
                   onChanged: (valor) => setState(() => somenteDedole = valor),
                 ),
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Dispositivos encontrados',
-                        style: TextStyle(color: azul, fontSize: 17, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: texto,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    Text('${lista.length}', style: const TextStyle(color: azul)),
+                    Text('${lista.length}', style: TextStyle(color: texto)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -515,10 +530,12 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
                       ? const Center(child: CircularProgressIndicator())
                       : lista.isEmpty
                           ? Center(
-                              child: Text(procurando
-                                  ? 'Procurando dispositivos...'
-                                  : 'Nenhum dispositivo encontrado.',
-                                style: const TextStyle(color: azul)),
+                              child: Text(
+                                procurando
+                                    ? 'Procurando dispositivos...'
+                                    : 'Nenhum dispositivo encontrado.',
+                                style: TextStyle(color: texto),
+                              ),
                             )
                           : ListView.builder(
                               itemCount: lista.length,
@@ -529,18 +546,21 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
                                   color: branco,
                                   margin: const EdgeInsets.only(bottom: 8),
                                   child: ListTile(
-                                    leading: const Icon(Icons.developer_board, color: azul),
+                                    leading: Icon(Icons.developer_board, color: azul),
                                     title: Text(
                                       nomeExibido(resultado),
-                                      style: const TextStyle(color: azul, fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        color: texto,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                     subtitle: Text(
                                       '${nomeOriginal(resultado)} · ${resultado.rssi} dBm',
-                                      style: const TextStyle(color: azul),
+                                      style: TextStyle(color: texto),
                                     ),
                                     trailing: IconButton(
                                       tooltip: 'Renomear',
-                                      icon: const Icon(Icons.edit_outlined, color: azul),
+                                      icon: Icon(Icons.edit_outlined, color: azul),
                                       onPressed: () => salvarApelido(
                                         device,
                                         nomeOriginal(resultado),
@@ -560,7 +580,7 @@ class _TelaBluetoothState extends State<TelaBluetooth> {
                     style: OutlinedButton.styleFrom(
                       backgroundColor: branco,
                       foregroundColor: azul,
-                      side: const BorderSide(color: azul, width: 1.5),
+                      side: BorderSide(color: azul, width: 1.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),
