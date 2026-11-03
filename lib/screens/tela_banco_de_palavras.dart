@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+
 import '../widgets/SquareButton.dart';
 import 'tela_alfabeto_screen.dart';
 import 'tela_numeros_screen.dart';
@@ -17,34 +18,68 @@ class TelaBancoDePalavras extends StatefulWidget {
 class _TelaBancoDePalavrasState extends State<TelaBancoDePalavras> {
   final TextEditingController _controller = TextEditingController();
 
+  // CORES DINÂMICAS
+  // Acompanham o tema global do Dedolê.
+
+  Color get corPrincipal => Theme.of(context).colorScheme.primary;
+
+  Color get corTexto => Theme.of(context).colorScheme.onSurface;
+
+  Color get corFundo => Theme.of(context).scaffoldBackgroundColor;
+
+  Color get corSuperficie => Theme.of(context).colorScheme.surface;
+
+  Color get corBorda => Theme.of(context).colorScheme.outline;
+
+  // Identifica quando os SVGs precisam mudar de cor.
+  // No tema claro original, mantém as cores dos arquivos SVG.
+
+  bool get usarCorAdaptada =>
+      Theme.of(context).colorScheme.primary != const Color(0xFF1B2161);
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-Future<void> _salvarPalavra() async {
-  final texto = _controller.text.trim();
+  // SALVAR PALAVRA
+  // Mantém o funcionamento original com SQLite.
 
-  if (texto.isEmpty) return;
+  Future<void> _salvarPalavra() async {
+    final texto = _controller.text.trim();
 
-  await BancoDedole.adicionarPalavra(texto);
+    if (texto.isEmpty) return;
 
-  _controller.clear();
+    await BancoDedole.adicionarPalavra(texto);
 
-  if (!mounted) return;
+    _controller.clear();
 
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('Palavra salva!'),
-    ),
-  );
-}
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Palavra salva!')));
+  }
+
+  // ÍCONES SVG
+  // Ajusta as cores quando o tema muda.
+
+  Widget _iconeSvg(String caminho) {
+    return SvgPicture.asset(
+      caminho,
+      width: 40,
+      height: 40,
+      colorFilter: usarCorAdaptada
+          ? ColorFilter.mode(corPrincipal, BlendMode.srcIn)
+          : null,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F7FF),
+      backgroundColor: corFundo,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -52,12 +87,15 @@ Future<void> _salvarPalavra() async {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeader(),
+
               const SizedBox(height: 28),
 
               _buildCampoTexto(),
+
               const SizedBox(height: 16),
 
               _buildBotaoSalvar(),
+
               const SizedBox(height: 28),
 
               Expanded(child: _buildGridDeAtalhos()),
@@ -68,20 +106,24 @@ Future<void> _salvarPalavra() async {
     );
   }
 
+  // CABEÇALHO
+
   Widget _buildHeader() {
     return Row(
       children: [
         IconButton(
           padding: EdgeInsets.zero,
-          icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFF1B2161)),
+          tooltip: 'Voltar',
+          icon: Icon(Icons.arrow_back_ios_new, color: corPrincipal),
           onPressed: () => Navigator.maybePop(context),
         ),
-        const Expanded(
+
+        Expanded(
           child: Text(
             'Digite a sua palavra:',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Color(0xFF1B2161),
+              color: corTexto,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -91,41 +133,50 @@ Future<void> _salvarPalavra() async {
     );
   }
 
+  // CAMPO DE TEXTO
+
   Widget _buildCampoTexto() {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFCFCFF),
+        color: corSuperficie,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF1B2161), width: 1.2),
+        border: Border.all(color: corBorda, width: 1.2),
       ),
       child: TextField(
         controller: _controller,
         textAlign: TextAlign.center,
-        style: const TextStyle(color: Color(0xFF1B2161), fontSize: 16),
+        style: TextStyle(color: corTexto, fontSize: 16),
+        cursorColor: corPrincipal,
         decoration: const InputDecoration(
           border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(vertical: 14),
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         ),
       ),
     );
   }
 
+  // BOTÃO SALVAR
+
   Widget _buildBotaoSalvar() {
-    return SizedBox(
-      height: 48,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
       child: OutlinedButton(
         onPressed: _salvarPalavra,
         style: OutlinedButton.styleFrom(
-          backgroundColor: const Color(0xFFFCFCFF),
-          side: const BorderSide(color: Color(0xFF1B2161), width: 1.5),
+          backgroundColor: corSuperficie,
+          foregroundColor: corTexto,
+          side: BorderSide(color: corBorda, width: 1.5),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
         ),
-        child: const Text(
+        child: Text(
           'Salvar',
           style: TextStyle(
-            color: Color(0xFF1B2161),
+            color: corTexto,
             fontSize: 16,
             fontWeight: FontWeight.bold,
           ),
@@ -134,61 +185,64 @@ Future<void> _salvarPalavra() async {
     );
   }
 
+  // GRID DE ATALHOS
+  // A altura acompanha a escala de texto para reduzir
+  // o risco de textos cortados.
+
   Widget _buildGridDeAtalhos() {
+    final escalaTexto = MediaQuery.textScalerOf(context).scale(1.0);
+
+    final fatorAltura = escalaTexto > 1.0 ? escalaTexto : 1.0;
+
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childAspectRatio: 1.05,
+      childAspectRatio: 1.05 / fatorAltura,
       children: [
+        // SUAS PALAVRAS
         buildSquareButton(
           label: 'Suas palavras',
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => TelaSuasPalavras()),
+              MaterialPageRoute(builder: (context) => const TelaSuasPalavras()),
             );
           },
-          icon: SvgPicture.asset(
-            'assets/vetores/imgSuasPalavras.svg',
-            width: 40,
-            height: 40,
-          ),
+          icon: _iconeSvg('assets/vetores/imgSuasPalavras.svg'),
         ),
+
+        // ALFABETO
         buildSquareButton(
           label: 'Alfabeto',
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => TelaAlfabeto()),
+              MaterialPageRoute(builder: (context) => const TelaAlfabeto()),
             );
           },
-          icon: SvgPicture.asset(
-            'assets/vetores/imgAlfabeto.svg',
-            width: 40,
-            height: 40,
-          ),
+          icon: _iconeSvg('assets/vetores/imgAlfabeto.svg'),
         ),
+
+        // NÚMEROS
         buildSquareButton(
           label: 'Números',
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => TelaNumeros()),
+              MaterialPageRoute(builder: (context) => const TelaNumeros()),
             );
           },
-          icon: SvgPicture.asset(
-            'assets/vetores/imgNúmeros.svg',
-            width: 40,
-            height: 40,
-          ),
+          icon: _iconeSvg('assets/vetores/imgNúmeros.svg'),
         ),
+
+        // CORES
         buildSquareButton(
           label: 'Cores',
           onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => TelaCores()),
+              MaterialPageRoute(builder: (context) => const TelaCores()),
             );
           },
           icon: SvgPicture.asset(
